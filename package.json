@@ -1,0 +1,34 @@
+{
+  "name": "ai-chatbot-script-tag",
+  "version": "1.0.0",
+  "description": "A lightweight, customizable AI chatbot widget that can be easily integrated into any website using a simple script tag",
+  "main": "ai-chatbot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "serve": "python3 -m http.server 8000",
+    "serve-node": "npx http-server -p 8000"
+  },
+  "keywords": [
+    "chatbot",
+    "ai",
+    "widget",
+    "script-tag",
+    "integration",
+    "javascript",
+    "html",
+    "css"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ai-chatbot-script-tag.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/ai-chatbot-script-tag/issues"
+  },
+  "homepage": "https://github.com/yourusername/ai-chatbot-script-tag#readme",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

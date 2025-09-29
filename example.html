@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot Integration Example</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        .demo-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+
+        .feature-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .feature-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .feature-list li:before {
+            content: "✓ ";
+            color: #4CAF50;
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>AI Chatbot Integration Example</h1>
+
+        <div class="demo-section">
+            <h2>Basic Integration</h2>
+            <p>To integrate the AI Chatbot into your website, simply add this script tag to your HTML:</p>
+            <div class="code-block">
+                &lt;script src="https://your-cdn-url.com/ai-chatbot.js"&gt;&lt;/script&gt;
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Advanced Configuration</h2>
+            <p>You can customize the chatbot behavior using data attributes:</p>
+            <div class="code-block">
+                &lt;script src="https://your-cdn-url.com/ai-chatbot.js"
+                data-api-url="https://your-api.com/chat"
+                data-default-message="Welcome! How can I help you?"
+                data-cdn-base-url="https://your-cdn-url.com/html/"
+                data-auto-open="true"&gt;&lt;/script&gt;
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Features</h2>
+            <ul class="feature-list">
+                <li>Responsive design that works on all devices</li>
+                <li>Sticky CTA button in bottom right corner</li>
+                <li>Smooth animations and transitions</li>
+                <li>Typing indicator for better UX</li>
+                <li>Message history and timestamps</li>
+                <li>Customizable API endpoint</li>
+                <li>Auto-open functionality</li>
+                <li>Keyboard shortcuts (Enter to send)</li>
+                <li>Click outside to close</li>
+                <li>Accessibility features</li>
+            </ul>
+        </div>
+
+        <div class="demo-section">
+            <h2>JavaScript API</h2>
+            <p>You can also control the chatbot programmatically:</p>
+            <div class="code-block">
+                // Open the chatbot
+                AIChatbot.open();
+
+                // Close the chatbot
+                AIChatbot.close();
+
+                // Toggle the chatbot
+                AIChatbot.toggle();
+
+                // Send a message programmatically
+                AIChatbot.sendMessage("Hello, how are you?");
+
+                // Access configuration
+                console.log(AIChatbot.config);
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>API Integration</h2>
+            <p>The chatbot expects your API to accept POST requests with this format:</p>
+            <div class="code-block">
+                {
+                "message": "User's message",
+                "history": [
+                {
+                "user": "Previous user message",
+                "bot": "Previous bot response",
+                "timestamp": "2024-01-01T12:00:00.000Z"
+                }
+                ],
+                "timestamp": "2024-01-01T12:00:00.000Z",
+                "userAgent": "Browser user agent",
+                "url": "Current page URL"
+                }
+            </div>
+            <p>And return responses in this format:</p>
+            <div class="code-block">
+                {
+                "message": "Bot's response message",
+                "status": "success"
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Chatbot Integration -->
+    <script src="ai-chatbot.js" data-api-url="http://localhost:3000/api/chat"
+        data-default-message="Hello! I'm your AI assistant. How can I help you today?" data-cdn-base-url="./html/"
+        data-auto-open="false">
+        </script>
+</body>
+
+</html>
