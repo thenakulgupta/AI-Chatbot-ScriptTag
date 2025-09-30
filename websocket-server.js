@@ -9,26 +9,30 @@ const fs = require("fs");
 const path = require("path");
 const url = require("url");
 const { v4: uuidv4 } = require("uuid");
+const Groq = require("groq-sdk");
+require("dotenv").config();
 
 const PORT = 3001;
 const WS_PORT = 3002;
+
+// Initialize Groq client
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 // Store active chat sessions
 const activeChats = new Map();
 const clientSockets = new Map();
 const pingCounters = new Map(); // Track ping counts per connection
 
-// Mock AI responses for testing
-const mockResponses = [
-  "Hello! I'm your AI assistant. How can I help you today?",
-  "That's an interesting question! Let me help you with that.",
-  "I understand what you're asking. Here's what I think...",
-  "Great question! Based on what you've told me, I'd suggest...",
-  "I'm here to help! Could you provide a bit more detail?",
-  "That's a common concern. Here are some things to consider...",
-  "I appreciate you sharing that with me. Let me offer some guidance...",
-  "Based on my knowledge, I can help you with that. Here's what I recommend...",
-];
+// Load system prompt
+let systemPrompt = "";
+try {
+  systemPrompt = fs.readFileSync(path.join(__dirname, "prompt.txt"), "utf8");
+} catch (error) {
+  console.error("Error loading prompt.txt:", error);
+  systemPrompt = "You are a helpful AI assistant.";
+}
 
 // MIME types
 const mimeTypes = {
@@ -50,13 +54,49 @@ function generateChatId() {
 }
 
 /**
+ * Load chat history from file
+ */
+function loadChatHistory(chatId) {
+  try {
+    const historyPath = path.join(__dirname, "history", `${chatId}.json`);
+    if (fs.existsSync(historyPath)) {
+      const data = fs.readFileSync(historyPath, "utf8");
+      return JSON.parse(data);
+    }
+  } catch (error) {
+    console.error(`Error loading chat history for ${chatId}:`, error);
+  }
+  return [];
+}
+
+/**
+ * Save chat history to file
+ */
+function saveChatHistory(chatId, messages) {
+  try {
+    const historyDir = path.join(__dirname, "history");
+    if (!fs.existsSync(historyDir)) {
+      fs.mkdirSync(historyDir, { recursive: true });
+    }
+
+    const historyPath = path.join(historyDir, `${chatId}.json`);
+    fs.writeFileSync(historyPath, JSON.stringify(messages, null, 2));
+  } catch (error) {
+    console.error(`Error saving chat history for ${chatId}:`, error);
+  }
+}
+
+/**
  * Create new chat session
  */
 function createChatSession(chatId, clientSocket) {
+  // Load existing history if available
+  const messages = loadChatHistory(chatId);
+
   const chatSession = {
     id: chatId,
     socket: clientSocket,
-    messages: [],
+    messages: messages,
     createdAt: new Date(),
     lastActivity: new Date(),
   };
@@ -86,53 +126,124 @@ function removeChatSession(chatId) {
 }
 
 /**
- * Process AI message with streaming (mock implementation)
+ * Process AI message with streaming using Groq API
  */
 async function processAIMessageStream(message, chatHistory, ws, chatId) {
-  // Simulate AI processing delay
-  await new Promise((resolve) =>
-    setTimeout(resolve, 500 + Math.random() * 1000)
-  );
+  try {
+    // Prepare messages for Groq API
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...chatHistory.map((msg) => ({
+        role: msg.type === "user" ? "user" : "assistant",
+        content: msg.message,
+      })),
+      { role: "user", content: message },
+    ];
 
-  // Get random response
-  const fullResponse =
-    mockResponses[Math.floor(Math.random() * mockResponses.length)];
+    // Call Groq API with streaming
+    const stream = await groq.chat.completions.create({
+      messages: messages,
+      model: process.env.GROQ_MODEL || "llama3-8b-8192",
+      stream: true,
+      temperature: 0.7,
+    });
 
-  // Split response into words
-  const words = fullResponse.split(" ");
-  let currentMessage = "";
+    let fullResponse = "";
+    let currentMessage = "";
 
-  // Send streaming response
-  for (let i = 0; i < words.length; i++) {
-    // Add 1-2 words at a time
-    const wordsToAdd = Math.random() > 0.5 ? 1 : 2;
-    const endIndex = Math.min(i + wordsToAdd, words.length);
-    const newWords = words.slice(i, endIndex);
-    currentMessage += (currentMessage ? " " : "") + newWords.join(" ");
+    // Process streaming response with 10-word chunks
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || "";
+      if (content) {
+        fullResponse += content;
 
-    // Send streaming chunk
+        // Split into words and send 3-5 words at a time for typing effect
+        const words = fullResponse.split(" ");
+        const currentWordCount = currentMessage.split(" ").length;
+        const newWordCount = words.length;
+
+        // Send chunk when we have 3-5 new words
+        if (newWordCount - currentWordCount >= 3) {
+          // Send 3-5 words at a time
+          const wordsToAdd = Math.min(
+            3 + Math.floor(Math.random() * 3),
+            newWordCount - currentWordCount
+          );
+          const endIndex = currentWordCount + wordsToAdd;
+          currentMessage = words.slice(0, endIndex).join(" ");
+
+          // Send streaming chunk
+          ws.send(
+            JSON.stringify({
+              type: "ai_message_stream",
+              message: currentMessage,
+              isComplete: false,
+              timestamp: new Date().toISOString(),
+            })
+          );
+
+          // Shorter delay for typing effect (50% faster)
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+    }
+
+    // Send final completion message
     ws.send(
       JSON.stringify({
         type: "ai_message_stream",
-        message: currentMessage,
-        isComplete: endIndex >= words.length,
+        message: fullResponse,
+        isComplete: true,
         timestamp: new Date().toISOString(),
       })
     );
 
-    i = endIndex - 1; // Adjust loop counter
+    return {
+      message: fullResponse,
+      timestamp: new Date().toISOString(),
+      type: "ai_response",
+    };
+  } catch (error) {
+    console.error("Groq API error:", error);
 
-    // Random delay between chunks (100-300ms) - faster typing
-    await new Promise((resolve) =>
-      setTimeout(resolve, 100 + Math.random() * 200)
-    );
+    // Fallback response
+    const fallbackResponse =
+      "I apologize, but I'm experiencing technical difficulties. Please try again in a moment.";
+
+    // Send fallback as streaming with 3-5 word chunks
+    const words = fallbackResponse.split(" ");
+    let currentMessage = "";
+
+    for (let i = 0; i < words.length; i += 3 + Math.floor(Math.random() * 3)) {
+      const wordsToAdd = Math.min(
+        3 + Math.floor(Math.random() * 3),
+        words.length - i
+      );
+      const endIndex = i + wordsToAdd;
+      const chunkWords = words.slice(i, endIndex);
+      currentMessage += (currentMessage ? " " : "") + chunkWords.join(" ");
+
+      ws.send(
+        JSON.stringify({
+          type: "ai_message_stream",
+          message: currentMessage,
+          isComplete: endIndex >= words.length,
+          timestamp: new Date().toISOString(),
+        })
+      );
+
+      // Shorter delay for typing effect (50% faster)
+      if (endIndex < words.length) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+
+    return {
+      message: fallbackResponse,
+      timestamp: new Date().toISOString(),
+      type: "ai_response",
+    };
   }
-
-  return {
-    message: fullResponse,
-    timestamp: new Date().toISOString(),
-    type: "ai_response",
-  };
 }
 
 /**
@@ -212,13 +323,30 @@ function handleJoinChat(ws, chatId) {
         })
       );
     } else {
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          message: "Chat session not found",
-          timestamp: new Date().toISOString(),
-        })
-      );
+      // Try to load from history file
+      const historyMessages = loadChatHistory(chatId);
+      if (historyMessages.length > 0) {
+        // Create session from history
+        const session = createChatSession(chatId, ws);
+        session.messages = historyMessages;
+
+        ws.send(
+          JSON.stringify({
+            type: "chat_joined",
+            chatId: chatId,
+            messages: session.messages,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } else {
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            message: "Chat session not found",
+            timestamp: new Date().toISOString(),
+          })
+        );
+      }
     }
   }
 }
@@ -290,6 +418,9 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
 
     session.messages.push(aiMessage);
     session.lastActivity = new Date();
+
+    // Save updated chat history to file
+    saveChatHistory(chatId, session.messages);
   } catch (error) {
     ws.send(
       JSON.stringify({

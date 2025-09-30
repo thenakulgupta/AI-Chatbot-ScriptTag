@@ -20,6 +20,7 @@
     autoOpen: false,
     showWelcome: true,
     useWebSocket: true, // Enable WebSocket for real-time chat
+    markdownEnabled: true, // Enable markdown rendering
   };
 
   // Global variables
@@ -36,13 +37,72 @@
   let streamingMessageElement = null;
   let currentStreamingMessage = "";
   let isThinking = false;
+  let markdownIt = null; // Markdown renderer
+
+  /**
+   * Load markdown library
+   */
+  function loadMarkdownLibrary() {
+    return new Promise((resolve, reject) => {
+      if (window.markdownit) {
+        markdownIt = window.markdownit({
+          html: true,
+          breaks: true,
+          linkify: true,
+          typographer: true,
+        });
+        resolve();
+        return;
+      }
+
+      const script = document.createElement("script");
+      script.src =
+        "https://cdn.jsdelivr.net/npm/markdown-it@14.0.0/dist/markdown-it.min.js";
+      script.onload = () => {
+        markdownIt = window.markdownit({
+          html: true,
+          breaks: true,
+          linkify: true,
+          typographer: true,
+        });
+        resolve();
+      };
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+
+  /**
+   * Render markdown to HTML
+   */
+  function renderMarkdown(text) {
+    if (!CONFIG.markdownEnabled || !markdownIt) {
+      return text;
+    }
+    try {
+      return markdownIt.render(text);
+    } catch (error) {
+      console.error("Markdown rendering error:", error);
+      return text;
+    }
+  }
 
   /**
    * Initialize the chatbot
    */
-  function initChatbot() {
+  async function initChatbot() {
     if (chatbotInitialized) {
       return;
+    }
+
+    // Load markdown library if enabled
+    if (CONFIG.markdownEnabled) {
+      try {
+        await loadMarkdownLibrary();
+      } catch (error) {
+        console.error("Failed to load markdown library:", error);
+        CONFIG.markdownEnabled = false;
+      }
     }
 
     // Get configuration from script tag data attributes
@@ -358,7 +418,14 @@
     messageDiv.className = `message ${sender}`;
 
     const messageText = document.createElement("div");
-    messageText.textContent = text;
+
+    // Render markdown for bot messages, plain text for user messages
+    if (sender === "bot" && CONFIG.markdownEnabled) {
+      messageText.innerHTML = renderMarkdown(text);
+    } else {
+      messageText.textContent = text;
+    }
+
     messageDiv.appendChild(messageText);
 
     const messageTime = document.createElement("div");
@@ -402,11 +469,31 @@
   }
 
   /**
-   * Update streaming message
+   * Update streaming message with progressive markdown rendering
    */
   function updateStreamingMessage(text) {
     if (streamingMessageElement) {
-      streamingMessageElement.textContent = text;
+      // Render markdown for streaming messages
+      if (CONFIG.markdownEnabled) {
+        // Split text into lines and render completed lines as markdown
+        const lines = text.split("\n");
+        let renderedText = "";
+
+        // Render all complete lines (except the last one) as markdown
+        for (let i = 0; i < lines.length; i++) {
+          if (i === lines.length - 1) {
+            // Last line - render as plain text if it's incomplete
+            renderedText += lines[i];
+          } else {
+            // Complete lines - render as markdown
+            renderedText += renderMarkdown(lines[i] + "\n");
+          }
+        }
+
+        streamingMessageElement.innerHTML = renderedText;
+      } else {
+        streamingMessageElement.textContent = text;
+      }
       const chatMessages = document.getElementById("chat-messages");
       if (chatMessages) {
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -419,6 +506,12 @@
    */
   function completeStreamingMessage() {
     if (streamingMessageElement) {
+      // Final render of the complete message with markdown
+      if (CONFIG.markdownEnabled) {
+        streamingMessageElement.innerHTML = renderMarkdown(
+          currentStreamingMessage
+        );
+      }
       streamingMessageElement.parentElement.classList.remove("streaming");
       streamingMessageElement = null;
       currentStreamingMessage = "";
