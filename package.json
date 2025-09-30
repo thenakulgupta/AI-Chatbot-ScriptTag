@@ -4,9 +4,10 @@
   "description": "A lightweight, customizable AI chatbot widget that can be easily integrated into any website using a simple script tag",
   "main": "ai-chatbot.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "serve": "python3 -m http.server 8000",
-    "serve-node": "npx http-server -p 8000"
+    "serve-node": "npx http-server -p 8000",
+    "start": "node websocket-server.js",
+    "dev": "node websocket-server.js"
   },
   "keywords": [
     "chatbot",
@@ -28,6 +29,10 @@
     "url": "https://github.com/yourusername/ai-chatbot-script-tag/issues"
   },
   "homepage": "https://github.com/yourusername/ai-chatbot-script-tag#readme",
+  "dependencies": {
+    "uuid": "^9.0.0",
+    "ws": "^8.14.0"
+  },
   "devDependencies": {
     "http-server": "^14.1.1"
   }

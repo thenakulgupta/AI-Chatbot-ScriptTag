@@ -118,9 +118,6 @@
 
                 // Send a message programmatically
                 AIChatbot.sendMessage("Hello, how are you?");
-
-                // Access configuration
-                console.log(AIChatbot.config);
             </div>
         </div>
 
@@ -153,9 +150,10 @@
     </div>
 
     <!-- AI Chatbot Integration -->
-    <script src="ai-chatbot.js" data-api-url="http://localhost:3000/api/chat"
+    <script src="ai-chatbot.js" data-api-url="http://localhost:3001/api/chat"
+        data-websocket-url="ws://localhost:3002/ws"
         data-default-message="Hello! I'm your AI assistant. How can I help you today?" data-cdn-base-url="./html/"
-        data-auto-open="false">
+        data-use-websocket="true" data-auto-open="false">
         </script>
 </body>
 

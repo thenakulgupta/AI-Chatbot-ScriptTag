@@ -59,9 +59,6 @@ const server = http.createServer((req, res) => {
 
     req.on("end", () => {
       try {
-        const data = JSON.parse(body);
-        console.log("Chat request:", data.message);
-
         // Simulate API delay
         setTimeout(() => {
           const randomResponse =

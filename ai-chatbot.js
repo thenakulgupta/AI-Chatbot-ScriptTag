@@ -12,25 +12,33 @@
   // Configuration - can be customized via data attributes
   const CONFIG = {
     apiUrl: "https://api.example.com/chat", // Default API endpoint
+    websocketUrl: "ws://localhost:3002/ws", // WebSocket server URL
     defaultMessage: "Hello! How can I help you today?",
     cdnBaseUrl: "https://your-cdn-url.com/html/", // Base URL for HTML/CSS files
     theme: "default",
     position: "bottom-right",
     autoOpen: false,
     showWelcome: true,
+    useWebSocket: true, // Enable WebSocket for real-time chat
   };
 
   // Global variables
   let chatbotInitialized = false;
   let chatHistory = [];
   let isTyping = false;
+  let websocket = null;
+  let currentChatId = null;
+  let reconnectAttempts = 0;
+  const maxReconnectAttempts = 5;
+  let pingInterval = null;
+  let pongTimeout = null;
+  let lastPongTime = null;
 
   /**
    * Initialize the chatbot
    */
   function initChatbot() {
     if (chatbotInitialized) {
-      console.warn("Chatbot already initialized");
       return;
     }
 
@@ -42,7 +50,8 @@
           `data-${key.replace(/([A-Z])/g, "-$1").toLowerCase()}`
         );
         if (value !== null) {
-          CONFIG[key] = value;
+          CONFIG[key] =
+            value === "true" ? true : value === "false" ? false : value;
         }
       });
     }
@@ -51,11 +60,16 @@
     loadChatbotAssets()
       .then(() => {
         setupEventListeners();
+
+        // Initialize WebSocket if enabled
+        if (CONFIG.useWebSocket) {
+          initializeWebSocket();
+        }
+
         chatbotInitialized = true;
-        console.log("AI Chatbot initialized successfully");
       })
       .catch((error) => {
-        console.error("Failed to initialize chatbot:", error);
+        // Failed to initialize chatbot
       });
   }
 
@@ -91,7 +105,6 @@
 
       return true;
     } catch (error) {
-      console.error("Error loading chatbot assets:", error);
       throw error;
     }
   }
@@ -224,6 +237,11 @@
       welcomeSection.style.display = "none";
       chatInterface.style.display = "flex";
 
+      // Initialize WebSocket connection for this chat
+      if (CONFIG.useWebSocket && !websocket) {
+        initializeWebSocket();
+      }
+
       // Add default message
       if (CONFIG.showWelcome && chatMessages) {
         addMessage(CONFIG.defaultMessage, "bot");
@@ -259,20 +277,25 @@
     showTypingIndicator();
 
     try {
-      // Call API
-      const response = await callChatAPI(message);
-
-      // Hide typing indicator
-      hideTypingIndicator();
-
-      // Add bot response
-      if (response && response.message) {
-        addMessage(response.message, "bot");
+      if (
+        CONFIG.useWebSocket &&
+        websocket &&
+        websocket.readyState === WebSocket.OPEN
+      ) {
+        // Send message via WebSocket
+        sendWebSocketMessage(message);
       } else {
-        addMessage("Sorry, I encountered an error. Please try again.", "bot");
+        // Fallback to API call
+        const response = await callChatAPI(message);
+        hideTypingIndicator();
+
+        if (response && response.message) {
+          addMessage(response.message, "bot");
+        } else {
+          addMessage("Sorry, I encountered an error. Please try again.", "bot");
+        }
       }
     } catch (error) {
-      console.error("Chat API error:", error);
       hideTypingIndicator();
       addMessage(
         "Sorry, I'm having trouble connecting. Please try again later.",
@@ -376,6 +399,209 @@
   }
 
   /**
+   * Initialize WebSocket connection
+   */
+  function initializeWebSocket() {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+      return; // Already connected
+    }
+
+    try {
+      websocket = new WebSocket(CONFIG.websocketUrl);
+
+      websocket.onopen = () => {
+        reconnectAttempts = 0;
+
+        // Start ping-pong heartbeat
+        startPingPong();
+
+        // Join chat session
+        if (currentChatId) {
+          sendWebSocketMessage({ type: "join_chat", chatId: currentChatId });
+        } else {
+          sendWebSocketMessage({ type: "join_chat" });
+        }
+      };
+
+      websocket.onmessage = (event) => {
+        handleWebSocketMessage(event.data);
+      };
+
+      websocket.onclose = (event) => {
+        // Stop ping-pong heartbeat
+        stopPingPong();
+
+        // Attempt to reconnect
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          setTimeout(() => {
+            initializeWebSocket();
+          }, 2000 * reconnectAttempts); // Exponential backoff
+        } else {
+          addMessage(
+            "Connection lost. Please refresh the page to reconnect.",
+            "bot"
+          );
+        }
+      };
+
+      websocket.onerror = (error) => {
+        // WebSocket error
+      };
+    } catch (error) {
+      // Failed to initialize WebSocket
+    }
+  }
+
+  /**
+   * Send WebSocket message
+   */
+  function sendWebSocketMessage(data) {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+      if (typeof data === "string") {
+        // Handle string message (user input)
+        websocket.send(
+          JSON.stringify({
+            type: "user_message",
+            chatId: currentChatId,
+            message: data,
+            timestamp: new Date().toISOString(),
+          })
+        );
+      } else {
+        // Handle object message (join_chat, etc.)
+        websocket.send(JSON.stringify(data));
+      }
+    }
+  }
+
+  /**
+   * Handle incoming WebSocket messages
+   */
+  function handleWebSocketMessage(data) {
+    try {
+      const message = JSON.parse(data);
+
+      switch (message.type) {
+        case "connected":
+          break;
+
+        case "chat_joined":
+          currentChatId = message.chatId;
+
+          // Load chat history if available
+          if (message.messages && message.messages.length > 0) {
+            const chatMessages = document.getElementById("chat-messages");
+            if (chatMessages) {
+              chatMessages.innerHTML = ""; // Clear existing messages
+              message.messages.forEach((msg) => {
+                addMessage(msg.message, msg.type);
+              });
+            }
+          }
+          break;
+
+        case "message_received":
+          break;
+
+        case "ai_message":
+          hideTypingIndicator();
+          addMessage(message.message, "bot");
+          break;
+
+        case "error":
+          hideTypingIndicator();
+          addMessage(message.message, "bot");
+          break;
+
+        case "pong":
+          // Keep-alive response
+          handlePong();
+          break;
+
+        default:
+          break;
+      }
+    } catch (error) {
+      // Error parsing WebSocket message
+    }
+  }
+
+  /**
+   * Close WebSocket connection
+   */
+  function closeWebSocket() {
+    if (websocket) {
+      stopPingPong();
+      websocket.close();
+      websocket = null;
+      currentChatId = null;
+    }
+  }
+
+  /**
+   * Start ping-pong heartbeat
+   */
+  function startPingPong() {
+    stopPingPong(); // Clear any existing intervals
+
+    pingInterval = setInterval(() => {
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        sendPing();
+      }
+    }, 1000); // Send ping every 1 second
+  }
+
+  /**
+   * Stop ping-pong heartbeat
+   */
+  function stopPingPong() {
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = null;
+    }
+    if (pongTimeout) {
+      clearTimeout(pongTimeout);
+      pongTimeout = null;
+    }
+  }
+
+  /**
+   * Send ping to server
+   */
+  function sendPing() {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+      const pingData = {
+        type: "ping",
+        timestamp: new Date().toISOString(),
+      };
+
+      websocket.send(JSON.stringify(pingData));
+
+      // Set timeout for pong response (5 seconds)
+      pongTimeout = setTimeout(() => {
+        // Force reconnection if no pong received
+        if (websocket) {
+          websocket.close();
+        }
+      }, 5000);
+    }
+  }
+
+  /**
+   * Handle pong response from server
+   */
+  function handlePong() {
+    lastPongTime = new Date();
+
+    // Clear the pong timeout
+    if (pongTimeout) {
+      clearTimeout(pongTimeout);
+      pongTimeout = null;
+    }
+  }
+
+  /**
    * Public API methods
    */
   window.AIChatbot = {
@@ -390,6 +616,16 @@
         sendMessage();
       }
     },
+    // WebSocket methods
+    connectWebSocket: initializeWebSocket,
+    disconnectWebSocket: closeWebSocket,
+    getChatId: () => currentChatId,
+    getWebSocketStatus: () => (websocket ? websocket.readyState : null),
+    // Ping-pong methods
+    startPingPong: startPingPong,
+    stopPingPong: stopPingPong,
+    getLastPongTime: () => lastPongTime,
+    // Configuration
     config: CONFIG,
   };
 
