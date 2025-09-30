@@ -65,6 +65,14 @@
                     <!-- Messages will be dynamically added here -->
                 </div>
 
+                <div class="typing-indicator" id="typing-indicator" style="display: none;">
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                    <span id="typing-text">AI is typing...</span>
+                </div>
                 <div class="chat-input-container">
                     <div class="chat-input-wrapper">
                         <input type="text" id="chat-input" placeholder="Type your message..." maxlength="500">
@@ -74,14 +82,6 @@
                                 <path d="M2.01 21L23 12L2.01 3L2 10L17 12L2 14L2.01 21Z" fill="currentColor" />
                             </svg>
                         </button>
-                    </div>
-                    <div class="typing-indicator" id="typing-indicator" style="display: none;">
-                        <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                        <span>AI is typing...</span>
                     </div>
                 </div>
             </div>

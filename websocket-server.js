@@ -86,20 +86,50 @@ function removeChatSession(chatId) {
 }
 
 /**
- * Process AI message (mock implementation)
+ * Process AI message with streaming (mock implementation)
  */
-async function processAIMessage(message, chatHistory) {
+async function processAIMessageStream(message, chatHistory, ws, chatId) {
   // Simulate AI processing delay
   await new Promise((resolve) =>
-    setTimeout(resolve, 1000 + Math.random() * 2000)
+    setTimeout(resolve, 500 + Math.random() * 1000)
   );
 
   // Get random response
-  const response =
+  const fullResponse =
     mockResponses[Math.floor(Math.random() * mockResponses.length)];
 
+  // Split response into words
+  const words = fullResponse.split(" ");
+  let currentMessage = "";
+
+  // Send streaming response
+  for (let i = 0; i < words.length; i++) {
+    // Add 1-2 words at a time
+    const wordsToAdd = Math.random() > 0.5 ? 1 : 2;
+    const endIndex = Math.min(i + wordsToAdd, words.length);
+    const newWords = words.slice(i, endIndex);
+    currentMessage += (currentMessage ? " " : "") + newWords.join(" ");
+
+    // Send streaming chunk
+    ws.send(
+      JSON.stringify({
+        type: "ai_message_stream",
+        message: currentMessage,
+        isComplete: endIndex >= words.length,
+        timestamp: new Date().toISOString(),
+      })
+    );
+
+    i = endIndex - 1; // Adjust loop counter
+
+    // Random delay between chunks (100-300ms) - faster typing
+    await new Promise((resolve) =>
+      setTimeout(resolve, 100 + Math.random() * 200)
+    );
+  }
+
   return {
-    message: response,
+    message: fullResponse,
     timestamp: new Date().toISOString(),
     type: "ai_response",
   };
@@ -241,9 +271,14 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
     })
   );
 
-  // Process with AI
+  // Process with AI using streaming
   try {
-    const aiResponse = await processAIMessage(messageText, session.messages);
+    const aiResponse = await processAIMessageStream(
+      messageText,
+      session.messages,
+      ws,
+      chatId
+    );
 
     // Add AI response to chat history
     const aiMessage = {
@@ -255,16 +290,6 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
 
     session.messages.push(aiMessage);
     session.lastActivity = new Date();
-
-    // Send AI response
-    ws.send(
-      JSON.stringify({
-        type: "ai_message",
-        messageId: aiMessage.id,
-        message: aiMessage.message,
-        timestamp: aiMessage.timestamp,
-      })
-    );
   } catch (error) {
     ws.send(
       JSON.stringify({

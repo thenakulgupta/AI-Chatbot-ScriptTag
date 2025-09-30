@@ -33,6 +33,9 @@
   let pingInterval = null;
   let pongTimeout = null;
   let lastPongTime = null;
+  let streamingMessageElement = null;
+  let currentStreamingMessage = "";
+  let isThinking = false;
 
   /**
    * Initialize the chatbot
@@ -273,8 +276,11 @@
     // Add user message to chat
     addMessage(message, "user");
 
-    // Show typing indicator
-    showTypingIndicator();
+    // Clean up any existing streaming message
+    completeStreamingMessage();
+
+    // Show thinking indicator
+    showThinkingIndicator();
 
     try {
       if (
@@ -285,15 +291,10 @@
         // Send message via WebSocket
         sendWebSocketMessage(message);
       } else {
-        // Fallback to API call
-        const response = await callChatAPI(message);
-        hideTypingIndicator();
-
-        if (response && response.message) {
-          addMessage(response.message, "bot");
-        } else {
-          addMessage("Sorry, I encountered an error. Please try again.", "bot");
-        }
+        // Fallback to API call with simulated streaming
+        simulateStreamingResponse(
+          "Sorry, I'm having trouble connecting. Please try again later."
+        );
       }
     } catch (error) {
       hideTypingIndicator();
@@ -373,13 +374,117 @@
   }
 
   /**
+   * Create streaming message element
+   */
+  function createStreamingMessage() {
+    const chatMessages = document.getElementById("chat-messages");
+    if (!chatMessages) return null;
+
+    const messageDiv = document.createElement("div");
+    messageDiv.className = "message bot streaming";
+
+    const messageText = document.createElement("div");
+    messageText.textContent = "";
+    messageDiv.appendChild(messageText);
+
+    const messageTime = document.createElement("div");
+    messageTime.className = "message-time";
+    messageTime.textContent = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    messageDiv.appendChild(messageTime);
+
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    return messageText;
+  }
+
+  /**
+   * Update streaming message
+   */
+  function updateStreamingMessage(text) {
+    if (streamingMessageElement) {
+      streamingMessageElement.textContent = text;
+      const chatMessages = document.getElementById("chat-messages");
+      if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    }
+  }
+
+  /**
+   * Complete streaming message
+   */
+  function completeStreamingMessage() {
+    if (streamingMessageElement) {
+      streamingMessageElement.parentElement.classList.remove("streaming");
+      streamingMessageElement = null;
+      currentStreamingMessage = "";
+    }
+  }
+
+  /**
+   * Simulate streaming response for fallback
+   */
+  async function simulateStreamingResponse(text) {
+    const words = text.split(" ");
+    let currentText = "";
+
+    // Change from "thinking" to "typing" when streaming starts
+    if (isThinking) {
+      showTypingIndicator();
+    }
+    streamingMessageElement = createStreamingMessage();
+
+    for (let i = 0; i < words.length; i++) {
+      const wordsToAdd = Math.random() > 0.5 ? 1 : 2;
+      const endIndex = Math.min(i + wordsToAdd, words.length);
+      const newWords = words.slice(i, endIndex);
+      currentText += (currentText ? " " : "") + newWords.join(" ");
+
+      updateStreamingMessage(currentText);
+
+      i = endIndex - 1;
+
+      // Random delay between chunks (100-300ms) - faster typing
+      await new Promise((resolve) =>
+        setTimeout(resolve, 100 + Math.random() * 200)
+      );
+    }
+
+    hideTypingIndicator(); // Hide typing indicator when streaming is complete
+    completeStreamingMessage();
+  }
+
+  /**
+   * Show thinking indicator
+   */
+  function showThinkingIndicator() {
+    const typingIndicator = document.getElementById("typing-indicator");
+    const typingText = document.getElementById("typing-text");
+    if (typingIndicator && typingText) {
+      isThinking = true;
+      typingIndicator.style.display = "flex";
+      typingText.textContent = "🤔 AI is thinking...";
+      const chatMessages = document.getElementById("chat-messages");
+      if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+    }
+  }
+
+  /**
    * Show typing indicator
    */
   function showTypingIndicator() {
     const typingIndicator = document.getElementById("typing-indicator");
-    if (typingIndicator) {
+    const typingText = document.getElementById("typing-text");
+    if (typingIndicator && typingText) {
       isTyping = true;
       typingIndicator.style.display = "flex";
+      typingText.textContent = "⌨️ AI is typing...";
       const chatMessages = document.getElementById("chat-messages");
       if (chatMessages) {
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -394,6 +499,7 @@
     const typingIndicator = document.getElementById("typing-indicator");
     if (typingIndicator) {
       isTyping = false;
+      isThinking = false;
       typingIndicator.style.display = "none";
     }
   }
@@ -507,6 +613,28 @@
         case "ai_message":
           hideTypingIndicator();
           addMessage(message.message, "bot");
+          break;
+
+        case "ai_message_stream":
+          // Create streaming message element if this is the first chunk
+          if (!streamingMessageElement) {
+            // Change from "thinking" to "typing" when streaming starts
+            if (isThinking) {
+              showTypingIndicator();
+            }
+            streamingMessageElement = createStreamingMessage();
+            currentStreamingMessage = "";
+          }
+
+          // Update the streaming message
+          currentStreamingMessage = message.message;
+          updateStreamingMessage(currentStreamingMessage);
+
+          // Complete the message if this is the final chunk
+          if (message.isComplete) {
+            hideTypingIndicator(); // Hide typing indicator when streaming is complete
+            completeStreamingMessage();
+          }
           break;
 
         case "error":

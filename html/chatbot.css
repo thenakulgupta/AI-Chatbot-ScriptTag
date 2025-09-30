@@ -307,12 +307,14 @@
 
 /* Typing Indicator */
 .typing-indicator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    color: #666;
-    font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  color: #666;
+  font-size: 12px;
+  border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
 }
 
 .typing-dots {
@@ -401,18 +403,37 @@
 
 /* Animation for message appearance */
 .message {
-    animation: messageSlideIn 0.3s ease-out;
+  animation: messageSlideIn 0.3s ease-out;
 }
 
 @keyframes messageSlideIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Streaming message styles */
+.message.streaming {
+  position: relative;
+}
+
+/* Smooth text appearance for streaming */
+.message.streaming div:first-child {
+  animation: textAppear 0.1s ease-in;
+}
+
+@keyframes textAppear {
+  from {
+    opacity: 0.7;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Focus styles for accessibility */
