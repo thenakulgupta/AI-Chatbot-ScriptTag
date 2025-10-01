@@ -18,11 +18,11 @@ const chatSessionSchema = new mongoose.Schema(
     },
     userAgent: {
       type: String,
-      default: "",
+      default: "Unknown",
     },
     url: {
       type: String,
-      default: "",
+      default: "Unknown",
     },
     metadata: {
       type: mongoose.Schema.Types.Mixed,

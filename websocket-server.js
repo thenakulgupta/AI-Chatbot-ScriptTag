@@ -94,7 +94,11 @@ async function saveMessage(sessionId, messageData) {
 /**
  * Create or update chat session in MongoDB
  */
-async function createOrUpdateChatSession(sessionId, userAgent = "", url = "") {
+async function createOrUpdateChatSession(
+  sessionId,
+  userAgent = "Unknown",
+  url = "Unknown"
+) {
   try {
     let session;
 
@@ -137,8 +141,8 @@ async function createOrUpdateChatSession(sessionId, userAgent = "", url = "") {
 async function createChatSession(
   sessionId,
   clientSocket,
-  userAgent = "",
-  url = ""
+  userAgent = "Unknown",
+  url = "Unknown"
 ) {
   try {
     // Create or update session in MongoDB
@@ -158,6 +162,8 @@ async function createChatSession(
       messages: messages,
       createdAt: dbSession.createdAt,
       lastActivity: dbSession.lastActivity,
+      userAgent: dbSession.userAgent,
+      url: dbSession.url,
     };
 
     activeChats.set(actualSessionId, chatSession);
@@ -191,6 +197,8 @@ async function removeChatSession(sessionId) {
       await ChatSession.findByIdAndUpdate(sessionId, {
         isActive: false,
         lastActivity: new Date(),
+        userAgent: session.userAgent || "Unknown",
+        url: session.url || "Unknown",
       });
     } catch (error) {
       console.error(
@@ -376,7 +384,12 @@ function handleWebSocketMessage(ws, message) {
 /**
  * Handle chat join
  */
-async function handleJoinChat(ws, sessionId, userAgent = "", url = "") {
+async function handleJoinChat(
+  ws,
+  sessionId,
+  userAgent = "Unknown",
+  url = "Unknown"
+) {
   try {
     if (!sessionId) {
       // Create new chat session
@@ -393,8 +406,10 @@ async function handleJoinChat(ws, sessionId, userAgent = "", url = "") {
       // Join existing chat session
       const session = getChatSession(sessionId);
       if (session) {
-        // Update socket reference
+        // Update socket reference and userAgent/url if provided
         session.socket = ws;
+        if (userAgent) session.userAgent = userAgent;
+        if (url) session.url = url;
         clientSockets.set(ws, sessionId);
 
         ws.send(
@@ -491,7 +506,11 @@ async function handleUserMessage(ws, sessionId, messageText, timestamp) {
   // Save user message to MongoDB
   try {
     await saveMessage(sessionId, userMessage);
-    await createOrUpdateChatSession(sessionId);
+    // Get userAgent and url from the session metadata
+    const session = getChatSession(sessionId);
+    const userAgent = session?.userAgent || "Unknown";
+    const url = session?.url || "Unknown";
+    await createOrUpdateChatSession(sessionId, userAgent, url);
   } catch (error) {
     console.error("Error saving user message:", error);
   }
@@ -528,7 +547,11 @@ async function handleUserMessage(ws, sessionId, messageText, timestamp) {
     // Save AI message to MongoDB
     try {
       await saveMessage(sessionId, aiMessage);
-      await createOrUpdateChatSession(sessionId);
+      // Get userAgent and url from the session metadata
+      const session = getChatSession(sessionId);
+      const userAgent = session?.userAgent || "Unknown";
+      const url = session?.url || "Unknown";
+      await createOrUpdateChatSession(sessionId, userAgent, url);
     } catch (error) {
       console.error("Error saving AI message:", error);
     }
@@ -559,7 +582,11 @@ function handleWebSocketConnection(ws, req) {
 
       // Update last activity in MongoDB
       try {
-        await createOrUpdateChatSession(sessionId);
+        // Get userAgent and url from the session metadata
+        const session = getChatSession(sessionId);
+        const userAgent = session?.userAgent || "Unknown";
+        const url = session?.url || "Unknown";
+        await createOrUpdateChatSession(sessionId, userAgent, url);
       } catch (error) {
         console.error("Error updating session on close:", error);
       }

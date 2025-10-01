@@ -124,10 +124,7 @@
       .then(() => {
         setupEventListeners();
 
-        // Initialize WebSocket if enabled
-        if (CONFIG.useWebSocket) {
-          initializeWebSocket();
-        }
+        // Don't initialize WebSocket automatically - wait for user to start chat
 
         chatbotInitialized = true;
       })
@@ -240,7 +237,7 @@
       }
     });
 
-    // Auto-open if configured
+    // Auto-open if configured (but don't start chat automatically)
     if (CONFIG.autoOpen) {
       setTimeout(() => {
         openChatbot();
@@ -267,14 +264,9 @@
    */
   function openChatbot() {
     const popup = document.getElementById("chatbot-popup");
-    const chatInterface = document.getElementById("chat-interface");
-    if (popup && chatInterface) {
+    if (popup) {
       popup.classList.add("show");
-      // Focus on input if chat is active
-      const chatInput = document.getElementById("chat-input");
-      if (chatInput && chatInterface.style.display !== "none") {
-        setTimeout(() => chatInput.focus(), 300);
-      }
+      // Don't automatically focus on input - let user click "Start a chat" first
     }
   }
 
