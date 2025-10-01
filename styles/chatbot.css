@@ -222,35 +222,7 @@
     background: #a8a8a8;
 }
 
-/* Message Styles */
-.message {
-    max-width: 80%;
-    padding: 12px 16px;
-    border-radius: 18px;
-    font-size: 14px;
-    line-height: 1.4;
-    word-wrap: break-word;
-}
-
-.message.user {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    align-self: flex-end;
-    border-bottom-right-radius: 4px;
-}
-
-.message.bot {
-    background: #f1f3f4;
-    color: #333;
-    align-self: flex-start;
-    border-bottom-left-radius: 4px;
-}
-
-.message-time {
-    font-size: 11px;
-    opacity: 0.7;
-    margin-top: 4px;
-}
+/* Message Styles - Basic layout only, markdown styles in markdown-styles.css */
 
 /* Chat Input */
 .chat-input-container {
@@ -401,40 +373,7 @@
     }
 }
 
-/* Animation for message appearance */
-.message {
-  animation: messageSlideIn 0.3s ease-out;
-}
-
-@keyframes messageSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Streaming message styles */
-.message.streaming {
-  position: relative;
-}
-
-/* Smooth text appearance for streaming */
-.message.streaming div:first-child {
-  animation: textAppear 0.1s ease-in;
-}
-
-@keyframes textAppear {
-  from {
-    opacity: 0.7;
-  }
-  to {
-    opacity: 1;
-  }
-}
+/* Animation and streaming styles moved to markdown-styles.css */
 
 /* Focus styles for accessibility */
 .chatbot-cta:focus,
@@ -449,113 +388,4 @@
     outline: none;
 }
 
-/* Markdown Styles */
-.message.bot h1,
-.message.bot h2,
-.message.bot h3,
-.message.bot h4,
-.message.bot h5,
-.message.bot h6 {
-    margin: 0.5em 0 0.3em 0;
-    color: #333;
-    font-weight: 600;
-}
-
-.message.bot h1 { font-size: 1.4em; }
-.message.bot h2 { font-size: 1.3em; }
-.message.bot h3 { font-size: 1.2em; }
-.message.bot h4 { font-size: 1.1em; }
-.message.bot h5 { font-size: 1.05em; }
-.message.bot h6 { font-size: 1em; }
-
-.message.bot p {
-    margin: 0.5em 0;
-    line-height: 1.5;
-}
-
-.message.bot ul,
-.message.bot ol {
-    margin: 0.5em 0;
-    padding-left: 1.5em;
-}
-
-.message.bot li {
-    margin: 0.2em 0;
-    line-height: 1.4;
-}
-
-.message.bot strong {
-    font-weight: 600;
-    color: #2c3e50;
-}
-
-.message.bot em {
-    font-style: italic;
-    color: #34495e;
-}
-
-.message.bot code {
-    background-color: #f8f9fa;
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9em;
-    color: #e74c3c;
-}
-
-.message.bot pre {
-    background-color: #f8f9fa;
-    padding: 1em;
-    border-radius: 5px;
-    overflow-x: auto;
-    margin: 0.5em 0;
-    border-left: 3px solid #667eea;
-}
-
-.message.bot pre code {
-    background: none;
-    padding: 0;
-    color: #2c3e50;
-}
-
-.message.bot blockquote {
-    border-left: 4px solid #667eea;
-    margin: 0.5em 0;
-    padding: 0.5em 1em;
-    background-color: #f8f9fa;
-    color: #555;
-    font-style: italic;
-}
-
-.message.bot a {
-    color: #667eea;
-    text-decoration: none;
-}
-
-.message.bot a:hover {
-    text-decoration: underline;
-}
-
-.message.bot hr {
-    border: none;
-    border-top: 1px solid #ddd;
-    margin: 1em 0;
-}
-
-.message.bot table {
-    border-collapse: collapse;
-    width: 100%;
-    margin: 0.5em 0;
-}
-
-.message.bot th,
-.message.bot td {
-    border: 1px solid #ddd;
-    padding: 0.5em;
-    text-align: left;
-}
-
-.message.bot th {
-    background-color: #f8f9fa;
-    font-weight: 600;
-}
+/* Markdown styles moved to markdown-styles.css */

@@ -14,7 +14,9 @@
     apiUrl: "http://localhost:3001/api/chat", // Default API endpoint
     websocketUrl: "ws://localhost:3002/ws", // WebSocket server URL
     defaultMessage: "Hello! How can I help you today?",
-    cdnBaseUrl: "./html/", // Base URL for HTML/CSS files
+    cdnBaseUrl: "./",
+    cdnBaseUrlStyles: "styles/",
+    cdnBaseUrlHtml: "html/",
     theme: "default",
     position: "bottom-right",
     autoOpen: false,
@@ -142,11 +144,18 @@
       // Load CSS
       const cssLink = document.createElement("link");
       cssLink.rel = "stylesheet";
-      cssLink.href = `${CONFIG.cdnBaseUrl}chatbot.css`;
+      cssLink.href = `${CONFIG.cdnBaseUrl}${CONFIG.cdnBaseUrlStyles}chatbot.css`;
       document.head.appendChild(cssLink);
 
+      const markdownCssLink = document.createElement("link");
+      markdownCssLink.rel = "stylesheet";
+      markdownCssLink.href = `${CONFIG.cdnBaseUrl}${CONFIG.cdnBaseUrlStyles}markdown-styles.css`;
+      document.head.appendChild(markdownCssLink);
+
       // Load HTML content
-      const response = await fetch(`${CONFIG.cdnBaseUrl}chatbot.html`);
+      const response = await fetch(
+        `${CONFIG.cdnBaseUrl}${CONFIG.cdnBaseUrlHtml}chatbot.html`
+      );
       if (!response.ok) {
         throw new Error(`Failed to load chatbot HTML: ${response.status}`);
       }
