@@ -28,7 +28,7 @@
   let chatHistory = [];
   let isTyping = false;
   let websocket = null;
-  let currentChatId = null;
+  let currentSessionId = null;
   let reconnectAttempts = 0;
   const maxReconnectAttempts = 5;
   let pingInterval = null;
@@ -615,10 +615,19 @@
         startPingPong();
 
         // Join chat session
-        if (currentChatId) {
-          sendWebSocketMessage({ type: "join_chat", chatId: currentChatId });
+        if (currentSessionId) {
+          sendWebSocketMessage({
+            type: "join_chat",
+            sessionId: currentSessionId,
+            userAgent: navigator.userAgent,
+            url: window.location.href,
+          });
         } else {
-          sendWebSocketMessage({ type: "join_chat" });
+          sendWebSocketMessage({
+            type: "join_chat",
+            userAgent: navigator.userAgent,
+            url: window.location.href,
+          });
         }
       };
 
@@ -662,9 +671,11 @@
         websocket.send(
           JSON.stringify({
             type: "user_message",
-            chatId: currentChatId,
+            sessionId: currentSessionId,
             message: data,
             timestamp: new Date().toISOString(),
+            userAgent: navigator.userAgent,
+            url: window.location.href,
           })
         );
       } else {
@@ -686,7 +697,7 @@
           break;
 
         case "chat_joined":
-          currentChatId = message.chatId;
+          currentSessionId = message.sessionId;
 
           // Load chat history if available
           if (message.messages && message.messages.length > 0) {
@@ -756,7 +767,7 @@
       stopPingPong();
       websocket.close();
       websocket = null;
-      currentChatId = null;
+      currentSessionId = null;
     }
   }
 
@@ -840,7 +851,7 @@
     // WebSocket methods
     connectWebSocket: initializeWebSocket,
     disconnectWebSocket: closeWebSocket,
-    getChatId: () => currentChatId,
+    getSessionId: () => currentSessionId,
     getWebSocketStatus: () => (websocket ? websocket.readyState : null),
     // Ping-pong methods
     startPingPong: startPingPong,

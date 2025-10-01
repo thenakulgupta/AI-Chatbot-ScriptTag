@@ -10,6 +10,12 @@ const path = require("path");
 const url = require("url");
 const { v4: uuidv4 } = require("uuid");
 const Groq = require("groq-sdk");
+const {
+  connectToDatabase,
+  disconnectFromDatabase,
+} = require("./database/connection");
+const ChatSession = require("./models/ChatSession");
+const ChatMessage = require("./models/ChatMessage");
 require("dotenv").config();
 
 const PORT = 3001;
@@ -47,88 +53,158 @@ const mimeTypes = {
 };
 
 /**
- * Generate unique chat ID
+ * Load chat history from MongoDB
  */
-function generateChatId() {
-  return `chat_${uuidv4()}`;
-}
-
-/**
- * Load chat history from file
- */
-function loadChatHistory(chatId) {
+async function loadChatHistory(sessionId) {
   try {
-    const historyPath = path.join(__dirname, "history", `${chatId}.json`);
-    if (fs.existsSync(historyPath)) {
-      const data = fs.readFileSync(historyPath, "utf8");
-      return JSON.parse(data);
-    }
+    const messages = await ChatMessage.getChatHistory(sessionId);
+    return messages.map((msg) => ({
+      id: msg._id.toString(),
+      type: msg.type,
+      message: msg.message,
+      timestamp: msg.timestamp.toISOString(),
+    }));
   } catch (error) {
-    console.error(`Error loading chat history for ${chatId}:`, error);
+    console.error(`Error loading chat history for ${sessionId}:`, error);
+    return [];
   }
-  return [];
 }
 
 /**
- * Save chat history to file
+ * Save message to MongoDB
  */
-function saveChatHistory(chatId, messages) {
+async function saveMessage(sessionId, messageData) {
   try {
-    const historyDir = path.join(__dirname, "history");
-    if (!fs.existsSync(historyDir)) {
-      fs.mkdirSync(historyDir, { recursive: true });
+    const message = new ChatMessage({
+      sessionId: sessionId,
+      type: messageData.type,
+      message: messageData.message,
+      timestamp: new Date(messageData.timestamp),
+      metadata: messageData.metadata || {},
+    });
+
+    await message.save();
+    return message;
+  } catch (error) {
+    console.error(`Error saving message for ${sessionId}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Create or update chat session in MongoDB
+ */
+async function createOrUpdateChatSession(sessionId, userAgent = "", url = "") {
+  try {
+    let session;
+
+    if (sessionId) {
+      // Update existing session
+      session = await ChatSession.findByIdAndUpdate(
+        sessionId,
+        {
+          lastActivity: new Date(),
+          isActive: true,
+          userAgent,
+          url,
+        },
+        { new: true }
+      );
+    } else {
+      // Create new session
+      session = new ChatSession({
+        lastActivity: new Date(),
+        isActive: true,
+        userAgent,
+        url,
+      });
+      await session.save();
     }
 
-    const historyPath = path.join(historyDir, `${chatId}.json`);
-    fs.writeFileSync(historyPath, JSON.stringify(messages, null, 2));
+    return session;
   } catch (error) {
-    console.error(`Error saving chat history for ${chatId}:`, error);
+    console.error(
+      `Error creating/updating chat session for ${sessionId}:`,
+      error
+    );
+    throw error;
   }
 }
 
 /**
  * Create new chat session
  */
-function createChatSession(chatId, clientSocket) {
-  // Load existing history if available
-  const messages = loadChatHistory(chatId);
+async function createChatSession(
+  sessionId,
+  clientSocket,
+  userAgent = "",
+  url = ""
+) {
+  try {
+    // Create or update session in MongoDB
+    const dbSession = await createOrUpdateChatSession(
+      sessionId,
+      userAgent,
+      url
+    );
+    const actualSessionId = dbSession._id.toString();
 
-  const chatSession = {
-    id: chatId,
-    socket: clientSocket,
-    messages: messages,
-    createdAt: new Date(),
-    lastActivity: new Date(),
-  };
+    // Load existing history if available
+    const messages = await loadChatHistory(actualSessionId);
 
-  activeChats.set(chatId, chatSession);
-  clientSockets.set(clientSocket, chatId);
+    const chatSession = {
+      id: actualSessionId,
+      socket: clientSocket,
+      messages: messages,
+      createdAt: dbSession.createdAt,
+      lastActivity: dbSession.lastActivity,
+    };
 
-  return chatSession;
+    activeChats.set(actualSessionId, chatSession);
+    clientSockets.set(clientSocket, actualSessionId);
+
+    return chatSession;
+  } catch (error) {
+    console.error(`Error creating chat session for ${sessionId}:`, error);
+    throw error;
+  }
 }
 
 /**
  * Get chat session by ID
  */
-function getChatSession(chatId) {
-  return activeChats.get(chatId);
+function getChatSession(sessionId) {
+  return activeChats.get(sessionId);
 }
 
 /**
  * Remove chat session
  */
-function removeChatSession(chatId) {
-  const session = activeChats.get(chatId);
+async function removeChatSession(sessionId) {
+  const session = activeChats.get(sessionId);
   if (session) {
     clientSockets.delete(session.socket);
-    activeChats.delete(chatId);
+    activeChats.delete(sessionId);
+
+    // Mark session as inactive in MongoDB
+    try {
+      await ChatSession.findByIdAndUpdate(sessionId, {
+        isActive: false,
+        lastActivity: new Date(),
+      });
+    } catch (error) {
+      console.error(
+        `Error marking session as inactive for ${sessionId}:`,
+        error
+      );
+    }
   }
 }
 
 /**
  * Process AI message with streaming using Groq API
  */
-async function processAIMessageStream(message, chatHistory, ws, chatId) {
+async function processAIMessageStream(message, chatHistory, ws, sessionId) {
   try {
     // Prepare messages for Groq API
     const messages = [
@@ -252,15 +328,22 @@ async function processAIMessageStream(message, chatHistory, ws, chatId) {
 function handleWebSocketMessage(ws, message) {
   try {
     const data = JSON.parse(message);
-    const { type, chatId, message: messageText, timestamp } = data;
+    const {
+      type,
+      sessionId,
+      message: messageText,
+      timestamp,
+      userAgent,
+      url,
+    } = data;
 
     switch (type) {
       case "join_chat":
-        handleJoinChat(ws, chatId);
+        handleJoinChat(ws, sessionId, userAgent, url);
         break;
 
       case "user_message":
-        handleUserMessage(ws, chatId, messageText, timestamp);
+        handleUserMessage(ws, sessionId, messageText, timestamp);
         break;
 
       case "ping":
@@ -293,69 +376,84 @@ function handleWebSocketMessage(ws, message) {
 /**
  * Handle chat join
  */
-function handleJoinChat(ws, chatId) {
-  if (!chatId) {
-    // Create new chat session
-    const newChatId = generateChatId();
-    const session = createChatSession(newChatId, ws);
-
-    ws.send(
-      JSON.stringify({
-        type: "chat_joined",
-        chatId: newChatId,
-        timestamp: new Date().toISOString(),
-      })
-    );
-  } else {
-    // Join existing chat session
-    const session = getChatSession(chatId);
-    if (session) {
-      // Update socket reference
-      session.socket = ws;
-      clientSockets.set(ws, chatId);
+async function handleJoinChat(ws, sessionId, userAgent = "", url = "") {
+  try {
+    if (!sessionId) {
+      // Create new chat session
+      const session = await createChatSession(null, ws, userAgent, url);
 
       ws.send(
         JSON.stringify({
           type: "chat_joined",
-          chatId: chatId,
-          messages: session.messages,
+          sessionId: session.id,
           timestamp: new Date().toISOString(),
         })
       );
     } else {
-      // Try to load from history file
-      const historyMessages = loadChatHistory(chatId);
-      if (historyMessages.length > 0) {
-        // Create session from history
-        const session = createChatSession(chatId, ws);
-        session.messages = historyMessages;
+      // Join existing chat session
+      const session = getChatSession(sessionId);
+      if (session) {
+        // Update socket reference
+        session.socket = ws;
+        clientSockets.set(ws, sessionId);
 
         ws.send(
           JSON.stringify({
             type: "chat_joined",
-            chatId: chatId,
+            sessionId: sessionId,
             messages: session.messages,
             timestamp: new Date().toISOString(),
           })
         );
       } else {
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            message: "Chat session not found",
-            timestamp: new Date().toISOString(),
-          })
-        );
+        // Try to load from MongoDB
+        const historyMessages = await loadChatHistory(sessionId);
+        if (historyMessages.length > 0) {
+          // Create session from history
+          const session = await createChatSession(
+            sessionId,
+            ws,
+            userAgent,
+            url
+          );
+          session.messages = historyMessages;
+
+          ws.send(
+            JSON.stringify({
+              type: "chat_joined",
+              sessionId: session.id,
+              messages: session.messages,
+              timestamp: new Date().toISOString(),
+            })
+          );
+        } else {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message: "Chat session not found",
+              timestamp: new Date().toISOString(),
+            })
+          );
+        }
       }
     }
+  } catch (error) {
+    console.error("Error handling chat join:", error);
+    ws.send(
+      JSON.stringify({
+        type: "error",
+        message: "Failed to join chat session",
+        timestamp: new Date().toISOString(),
+      })
+    );
   }
 }
 
 /**
  * Handle user message
  */
-async function handleUserMessage(ws, chatId, messageText, timestamp) {
-  const session = getChatSession(chatId);
+async function handleUserMessage(ws, sessionId, messageText, timestamp) {
+  const session = getChatSession(sessionId);
   if (!session) {
     ws.send(
       JSON.stringify({
@@ -367,8 +465,8 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
     return;
   }
 
-  // Verify chat ID matches
-  if (clientSockets.get(ws) !== chatId) {
+  // Verify session ID matches
+  if (clientSockets.get(ws) !== sessionId) {
     ws.send(
       JSON.stringify({
         type: "error",
@@ -390,6 +488,14 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
   session.messages.push(userMessage);
   session.lastActivity = new Date();
 
+  // Save user message to MongoDB
+  try {
+    await saveMessage(sessionId, userMessage);
+    await createOrUpdateChatSession(sessionId);
+  } catch (error) {
+    console.error("Error saving user message:", error);
+  }
+
   // Send user message confirmation
   ws.send(
     JSON.stringify({
@@ -405,7 +511,7 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
       messageText,
       session.messages,
       ws,
-      chatId
+      sessionId
     );
 
     // Add AI response to chat history
@@ -419,8 +525,13 @@ async function handleUserMessage(ws, chatId, messageText, timestamp) {
     session.messages.push(aiMessage);
     session.lastActivity = new Date();
 
-    // Save updated chat history to file
-    saveChatHistory(chatId, session.messages);
+    // Save AI message to MongoDB
+    try {
+      await saveMessage(sessionId, aiMessage);
+      await createOrUpdateChatSession(sessionId);
+    } catch (error) {
+      console.error("Error saving AI message:", error);
+    }
   } catch (error) {
     ws.send(
       JSON.stringify({
@@ -440,11 +551,18 @@ function handleWebSocketConnection(ws, req) {
     handleWebSocketMessage(ws, message);
   });
 
-  ws.on("close", () => {
-    const chatId = clientSockets.get(ws);
-    if (chatId) {
+  ws.on("close", async () => {
+    const sessionId = clientSockets.get(ws);
+    if (sessionId) {
       // Don't remove chat session immediately, allow reconnection
       clientSockets.delete(ws);
+
+      // Update last activity in MongoDB
+      try {
+        await createOrUpdateChatSession(sessionId);
+      } catch (error) {
+        console.error("Error updating session on close:", error);
+      }
     }
 
     // Clean up ping counter
@@ -469,7 +587,7 @@ function handleWebSocketConnection(ws, req) {
 }
 
 // Create HTTP server for static files and API
-const httpServer = http.createServer((req, res) => {
+const httpServer = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
   const method = req.method;
@@ -487,40 +605,79 @@ const httpServer = http.createServer((req, res) => {
 
   // API endpoint to create new chat session
   if (pathname === "/api/chat/create" && method === "POST") {
-    const chatId = generateChatId();
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        chatId: chatId,
-        websocketUrl: `ws://localhost:${WS_PORT}`,
-        timestamp: new Date().toISOString(),
-      })
-    );
+    try {
+      const session = new ChatSession({
+        lastActivity: new Date(),
+        isActive: true,
+      });
+      await session.save();
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          sessionId: session._id.toString(),
+          websocketUrl: `ws://localhost:${WS_PORT}`,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } catch (error) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "Failed to create chat session",
+        })
+      );
+    }
     return;
   }
 
   // API endpoint to get chat history
   if (pathname.startsWith("/api/chat/") && method === "GET") {
-    const chatId = pathname.split("/")[3];
-    const session = getChatSession(chatId);
+    const sessionId = pathname.split("/")[3];
+    const session = getChatSession(sessionId);
 
     if (session) {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          chatId: chatId,
+          sessionId: sessionId,
           messages: session.messages,
           createdAt: session.createdAt,
           lastActivity: session.lastActivity,
         })
       );
     } else {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          error: "Chat session not found",
-        })
-      );
+      // Try to load from MongoDB
+      try {
+        const messages = await loadChatHistory(sessionId);
+        const dbSession = await ChatSession.findById(sessionId);
+
+        if (dbSession) {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              sessionId: sessionId,
+              messages: messages,
+              createdAt: dbSession.createdAt,
+              lastActivity: dbSession.lastActivity,
+            })
+          );
+        } else {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error: "Chat session not found",
+            })
+          );
+        }
+      } catch (error) {
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Failed to load chat history",
+          })
+        );
+      }
     }
     return;
   }
@@ -565,32 +722,57 @@ const wss = new WebSocket.Server({
 
 wss.on("connection", handleWebSocketConnection);
 
-// Start HTTP server
-httpServer.listen(PORT, () => {
-  console.log(`🚀 AI Chatbot Server running on http://localhost:${PORT}`);
-  console.log(`🔌 WebSocket Server running on ws://localhost:${WS_PORT}/ws`);
-  console.log(`📝 Example page: http://localhost:${PORT}/example.html`);
-  console.log(`\nTo test the chatbot:`);
-  console.log(`1. Open http://localhost:${PORT}/example.html in your browser`);
-  console.log(`2. Click the chatbot button in the bottom right`);
-  console.log(`3. Start chatting with the AI assistant via WebSocket`);
-  console.log(`\nPress Ctrl+C to stop the server`);
-});
+// Initialize MongoDB connection and start servers
+async function startServers() {
+  try {
+    // Connect to MongoDB first
+    await connectToDatabase();
+
+    // Start HTTP server
+    httpServer.listen(PORT, () => {
+      console.log(`🚀 AI Chatbot Server running on http://localhost:${PORT}`);
+      console.log(
+        `🔌 WebSocket Server running on ws://localhost:${WS_PORT}/ws`
+      );
+      console.log(`📝 Example page: http://localhost:${PORT}/example.html`);
+      console.log(`\nTo test the chatbot:`);
+      console.log(
+        `1. Open http://localhost:${PORT}/example.html in your browser`
+      );
+      console.log(`2. Click the chatbot button in the bottom right`);
+      console.log(`3. Start chatting with the AI assistant via WebSocket`);
+      console.log(`\nPress Ctrl+C to stop the server`);
+    });
+  } catch (error) {
+    console.error("❌ Failed to start servers:", error);
+    process.exit(1);
+  }
+}
+
+// Start the servers
+startServers();
 
 // Cleanup inactive chat sessions every 30 minutes
-setInterval(() => {
+setInterval(async () => {
   const now = new Date();
   const inactiveThreshold = 30 * 60 * 1000; // 30 minutes
 
-  for (const [chatId, session] of activeChats.entries()) {
+  for (const [sessionId, session] of activeChats.entries()) {
     if (now - session.lastActivity > inactiveThreshold) {
-      removeChatSession(chatId);
+      await removeChatSession(sessionId);
     }
+  }
+
+  // Also cleanup old sessions in MongoDB
+  try {
+    await ChatSession.cleanupOldSessions(inactiveThreshold);
+  } catch (error) {
+    console.error("Error cleaning up old sessions:", error);
   }
 }, 30 * 60 * 1000);
 
 // Graceful shutdown
-process.on("SIGINT", () => {
+process.on("SIGINT", async () => {
   console.log("\n👋 Shutting down servers...");
 
   // Close all WebSocket connections
@@ -599,9 +781,13 @@ process.on("SIGINT", () => {
   });
 
   // Close servers
-  wss.close(() => {
-    httpServer.close(() => {
+  wss.close(async () => {
+    httpServer.close(async () => {
       console.log("✅ Servers closed");
+
+      // Disconnect from MongoDB
+      await disconnectFromDatabase();
+
       process.exit(0);
     });
   });
