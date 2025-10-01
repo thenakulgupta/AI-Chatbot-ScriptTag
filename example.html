@@ -80,11 +80,32 @@
             <p>You can customize the chatbot behavior using data attributes:</p>
             <div class="code-block">
                 &lt;script src="https://your-cdn-url.com/ai-chatbot.js"
-                data-api-url="https://your-api.com/chat"
                 data-default-message="Welcome! How can I help you?"
-                data-cdn-base-url="https://your-cdn-url.com/html/"
+                data-category="support"
                 data-auto-open="true"&gt;&lt;/script&gt;
             </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>Chat Categorization</h2>
+            <p>Organize your chats by category to better manage different types of conversations:</p>
+            <div class="code-block">
+                &lt;!-- Support page --&gt;
+                &lt;script src="ai-chatbot.js" data-category="support"&gt;&lt;/script&gt;
+
+                &lt;!-- Sales page --&gt;
+                &lt;script src="ai-chatbot.js" data-category="sales"&gt;&lt;/script&gt;
+
+                &lt;!-- General page --&gt;
+                &lt;script src="ai-chatbot.js" data-category="general"&gt;&lt;/script&gt;
+            </div>
+            <p>This allows you to:</p>
+            <ul class="feature-list">
+                <li>Separate support tickets from sales inquiries</li>
+                <li>Track conversation types and analytics</li>
+                <li>Route different categories to appropriate teams</li>
+                <li>Maintain organized chat history by purpose</li>
+            </ul>
         </div>
 
         <div class="demo-section">
@@ -98,6 +119,7 @@
                 <li>Customizable API endpoint</li>
                 <li>Auto-open functionality (optional)</li>
                 <li>Lazy WebSocket connection (connects only when chat starts)</li>
+                <li>Chat categorization for organized conversations</li>
                 <li>Keyboard shortcuts (Enter to send)</li>
                 <li>Click outside to close</li>
                 <li>Accessibility features</li>
@@ -155,7 +177,7 @@
 
     <!-- AI Chatbot Integration -->
     <script src="ai-chatbot.js" data-default-message="Hello! I'm your AI assistant. How can I help you today?"
-        data-auto-open="false">
+        data-category="demo" data-auto-open="false">
         </script>
 </body>
 

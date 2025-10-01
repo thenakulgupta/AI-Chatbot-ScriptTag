@@ -21,6 +21,7 @@
     showWelcome: true,
     useWebSocket: true, // Enable WebSocket for real-time chat
     markdownEnabled: true, // Enable markdown rendering
+    category: "general", // Default category for chat sessions
   };
 
   // Global variables
@@ -613,12 +614,14 @@
             sessionId: currentSessionId,
             userAgent: navigator.userAgent,
             url: window.location.href,
+            category: CONFIG.category,
           });
         } else {
           sendWebSocketMessage({
             type: "join_chat",
             userAgent: navigator.userAgent,
             url: window.location.href,
+            category: CONFIG.category,
           });
         }
       };
@@ -668,6 +671,7 @@
             timestamp: new Date().toISOString(),
             userAgent: navigator.userAgent,
             url: window.location.href,
+            category: CONFIG.category,
           })
         );
       } else {

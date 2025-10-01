@@ -24,6 +24,11 @@ const chatSessionSchema = new mongoose.Schema(
       type: String,
       default: "Unknown",
     },
+    category: {
+      type: String,
+      default: "general",
+      index: true,
+    },
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {},
@@ -38,6 +43,7 @@ const chatSessionSchema = new mongoose.Schema(
 chatSessionSchema.index({ createdAt: -1 });
 chatSessionSchema.index({ lastActivity: -1 });
 chatSessionSchema.index({ isActive: 1 });
+chatSessionSchema.index({ category: 1 });
 
 // Virtual for message count
 chatSessionSchema.virtual("messageCount", {
@@ -70,6 +76,27 @@ chatSessionSchema.statics.cleanupOldSessions = function (
     },
     { isActive: false }
   );
+};
+
+// Static method to find sessions by category
+chatSessionSchema.statics.findByCategory = function (category) {
+  return this.find({ category, isActive: true }).sort({ lastActivity: -1 });
+};
+
+// Static method to get session statistics by category
+chatSessionSchema.statics.getCategoryStats = function () {
+  return this.aggregate([
+    { $match: { isActive: true } },
+    {
+      $group: {
+        _id: "$category",
+        count: { $sum: 1 },
+        lastActivity: { $max: "$lastActivity" },
+        firstCreated: { $min: "$createdAt" },
+      },
+    },
+    { $sort: { count: -1 } },
+  ]);
 };
 
 module.exports = mongoose.model("ChatSession", chatSessionSchema);

@@ -97,7 +97,8 @@ async function saveMessage(sessionId, messageData) {
 async function createOrUpdateChatSession(
   sessionId,
   userAgent = "Unknown",
-  url = "Unknown"
+  url = "Unknown",
+  category = "general"
 ) {
   try {
     let session;
@@ -111,6 +112,7 @@ async function createOrUpdateChatSession(
           isActive: true,
           userAgent,
           url,
+          category,
         },
         { new: true }
       );
@@ -121,6 +123,7 @@ async function createOrUpdateChatSession(
         isActive: true,
         userAgent,
         url,
+        category,
       });
       await session.save();
     }
@@ -142,14 +145,16 @@ async function createChatSession(
   sessionId,
   clientSocket,
   userAgent = "Unknown",
-  url = "Unknown"
+  url = "Unknown",
+  category = "general"
 ) {
   try {
     // Create or update session in MongoDB
     const dbSession = await createOrUpdateChatSession(
       sessionId,
       userAgent,
-      url
+      url,
+      category
     );
     const actualSessionId = dbSession._id.toString();
 
@@ -164,6 +169,7 @@ async function createChatSession(
       lastActivity: dbSession.lastActivity,
       userAgent: dbSession.userAgent,
       url: dbSession.url,
+      category: dbSession.category,
     };
 
     activeChats.set(actualSessionId, chatSession);
@@ -199,6 +205,7 @@ async function removeChatSession(sessionId) {
         lastActivity: new Date(),
         userAgent: session.userAgent || "Unknown",
         url: session.url || "Unknown",
+        category: session.category || "general",
       });
     } catch (error) {
       console.error(
@@ -343,15 +350,16 @@ function handleWebSocketMessage(ws, message) {
       timestamp,
       userAgent,
       url,
+      category,
     } = data;
 
     switch (type) {
       case "join_chat":
-        handleJoinChat(ws, sessionId, userAgent, url);
+        handleJoinChat(ws, sessionId, userAgent, url, category);
         break;
 
       case "user_message":
-        handleUserMessage(ws, sessionId, messageText, timestamp);
+        handleUserMessage(ws, sessionId, messageText, timestamp, category);
         break;
 
       case "ping":
@@ -388,12 +396,19 @@ async function handleJoinChat(
   ws,
   sessionId,
   userAgent = "Unknown",
-  url = "Unknown"
+  url = "Unknown",
+  category = "general"
 ) {
   try {
     if (!sessionId) {
       // Create new chat session
-      const session = await createChatSession(null, ws, userAgent, url);
+      const session = await createChatSession(
+        null,
+        ws,
+        userAgent,
+        url,
+        category
+      );
 
       ws.send(
         JSON.stringify({
@@ -406,10 +421,11 @@ async function handleJoinChat(
       // Join existing chat session
       const session = getChatSession(sessionId);
       if (session) {
-        // Update socket reference and userAgent/url if provided
+        // Update socket reference and userAgent/url/category if provided
         session.socket = ws;
         if (userAgent) session.userAgent = userAgent;
         if (url) session.url = url;
+        if (category) session.category = category;
         clientSockets.set(ws, sessionId);
 
         ws.send(
@@ -429,7 +445,8 @@ async function handleJoinChat(
             sessionId,
             ws,
             userAgent,
-            url
+            url,
+            category
           );
           session.messages = historyMessages;
 
@@ -467,7 +484,13 @@ async function handleJoinChat(
 /**
  * Handle user message
  */
-async function handleUserMessage(ws, sessionId, messageText, timestamp) {
+async function handleUserMessage(
+  ws,
+  sessionId,
+  messageText,
+  timestamp,
+  category = "general"
+) {
   const session = getChatSession(sessionId);
   if (!session) {
     ws.send(
@@ -506,11 +529,12 @@ async function handleUserMessage(ws, sessionId, messageText, timestamp) {
   // Save user message to MongoDB
   try {
     await saveMessage(sessionId, userMessage);
-    // Get userAgent and url from the session metadata
+    // Get userAgent, url, and category from the session metadata
     const session = getChatSession(sessionId);
     const userAgent = session?.userAgent || "Unknown";
     const url = session?.url || "Unknown";
-    await createOrUpdateChatSession(sessionId, userAgent, url);
+    const sessionCategory = session?.category || category || "general";
+    await createOrUpdateChatSession(sessionId, userAgent, url, sessionCategory);
   } catch (error) {
     console.error("Error saving user message:", error);
   }
@@ -547,11 +571,17 @@ async function handleUserMessage(ws, sessionId, messageText, timestamp) {
     // Save AI message to MongoDB
     try {
       await saveMessage(sessionId, aiMessage);
-      // Get userAgent and url from the session metadata
+      // Get userAgent, url, and category from the session metadata
       const session = getChatSession(sessionId);
       const userAgent = session?.userAgent || "Unknown";
       const url = session?.url || "Unknown";
-      await createOrUpdateChatSession(sessionId, userAgent, url);
+      const sessionCategory = session?.category || category || "general";
+      await createOrUpdateChatSession(
+        sessionId,
+        userAgent,
+        url,
+        sessionCategory
+      );
     } catch (error) {
       console.error("Error saving AI message:", error);
     }
@@ -582,11 +612,17 @@ function handleWebSocketConnection(ws, req) {
 
       // Update last activity in MongoDB
       try {
-        // Get userAgent and url from the session metadata
+        // Get userAgent, url, and category from the session metadata
         const session = getChatSession(sessionId);
         const userAgent = session?.userAgent || "Unknown";
         const url = session?.url || "Unknown";
-        await createOrUpdateChatSession(sessionId, userAgent, url);
+        const sessionCategory = session?.category || "general";
+        await createOrUpdateChatSession(
+          sessionId,
+          userAgent,
+          url,
+          sessionCategory
+        );
       } catch (error) {
         console.error("Error updating session on close:", error);
       }
