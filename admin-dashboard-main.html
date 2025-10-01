@@ -7,6 +7,7 @@
     <title>AI Chatbot Admin Dashboard - Main</title>
     <link rel="stylesheet" href="styles/admin-dashboard.css">
     <link rel="stylesheet" href="styles/markdown-styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 
 <body>
@@ -392,17 +393,24 @@
         // Render messages
         function renderMessages(messages, append = false) {
             const container = document.getElementById('chat-messages-container');
-            const messagesHtml = messages.map(message => `
-                <div class="message ${message.type}">
-                    <div class="message-avatar">
-                        ${message.type === 'user' ? 'U' : 'AI'}
+            const messagesHtml = messages.map(message => {
+                // Parse markdown for AI messages, escape HTML for user messages
+                const messageContent = message.type === 'ai' || message.type === 'bot'
+                    ? marked.parse(message.message)
+                    : escapeHtml(message.message);
+
+                return `
+                    <div class="message ${message.type}">
+                        <div class="message-avatar">
+                            ${message.type === 'user' ? 'U' : 'AI'}
+                        </div>
+                        <div class="message-content">
+                            <div class="message-text">${messageContent}</div>
+                            <div class="message-time">${formatDate(message.timestamp)}</div>
+                        </div>
                     </div>
-                    <div class="message-content">
-                        <div class="message-text">${escapeHtml(message.message)}</div>
-                        <div class="message-time">${formatDate(message.timestamp)}</div>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
 
             if (append) {
                 // Append older messages at the top
