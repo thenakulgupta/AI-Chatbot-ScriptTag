@@ -745,15 +745,27 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin API endpoints
-  if (pathname === "/api/admin/stats" && method === "GET") {
+  // Admin API endpoints - Demo Dashboard (Demo category only)
+  if (pathname === "/api/admin/demo/stats" && method === "GET") {
     try {
-      const totalSessions = await ChatSession.countDocuments();
+      // Only show demo category data
+      const sessionQuery = { category: "demo" };
+      const messageQuery = {
+        sessionId: {
+          $in: await ChatSession.find({ category: "demo" }).distinct("_id"),
+        },
+      };
+
+      const totalSessions = await ChatSession.countDocuments(sessionQuery);
       const activeSessions = await ChatSession.countDocuments({
+        ...sessionQuery,
         isActive: true,
       });
-      const totalMessages = await ChatMessage.countDocuments();
+      const totalMessages = await ChatMessage.countDocuments(messageQuery);
       const categoryStats = await ChatSession.getCategoryStats();
+      const filteredCategoryStats = categoryStats.filter(
+        (stat) => stat._id === "demo"
+      );
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(
@@ -761,20 +773,115 @@ const httpServer = http.createServer(async (req, res) => {
           totalSessions,
           activeSessions,
           totalMessages,
-          categoriesCount: categoryStats.length,
-          categoryStats,
+          categoriesCount: filteredCategoryStats.length,
+          categoryStats: filteredCategoryStats,
         })
       );
     } catch (error) {
-      console.error("Error getting admin stats:", error);
+      console.error("Error getting demo stats:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
     return;
   }
 
-  // Get paginated sessions
-  if (pathname === "/api/admin/sessions" && method === "GET") {
+  // Admin API endpoints - Main Dashboard (All except demo)
+  if (pathname === "/api/admin/main/stats" && method === "GET") {
+    try {
+      // Exclude demo category data
+      const sessionQuery = { category: { $ne: "demo" } };
+      const messageQuery = {
+        sessionId: {
+          $in: await ChatSession.find({ category: { $ne: "demo" } }).distinct(
+            "_id"
+          ),
+        },
+      };
+
+      const totalSessions = await ChatSession.countDocuments(sessionQuery);
+      const activeSessions = await ChatSession.countDocuments({
+        ...sessionQuery,
+        isActive: true,
+      });
+      const totalMessages = await ChatMessage.countDocuments(messageQuery);
+      const categoryStats = await ChatSession.getCategoryStats();
+      const filteredCategoryStats = categoryStats.filter(
+        (stat) => stat._id !== "demo"
+      );
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          totalSessions,
+          activeSessions,
+          totalMessages,
+          categoriesCount: filteredCategoryStats.length,
+          categoryStats: filteredCategoryStats,
+        })
+      );
+    } catch (error) {
+      console.error("Error getting main stats:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
+  // Get paginated sessions - Demo Dashboard (Demo category only)
+  if (pathname === "/api/admin/demo/sessions" && method === "GET") {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const page = parseInt(url.searchParams.get("page")) || 1;
+      const limit = parseInt(url.searchParams.get("limit")) || 10;
+      const status = url.searchParams.get("status");
+      const search = url.searchParams.get("search");
+
+      // Build query - only demo category
+      const query = { category: "demo" };
+      if (status) query.isActive = status === "active";
+      if (search) {
+        query.$or = [
+          { _id: { $regex: search, $options: "i" } },
+          { userAgent: { $regex: search, $options: "i" } },
+          { url: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const skip = (page - 1) * limit;
+      const sessions = await ChatSession.find(query)
+        .populate("messageCount")
+        .sort({ lastActivity: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const total = await ChatSession.countDocuments(query);
+      const totalPages = Math.ceil(total / limit);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          sessions,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Error getting demo sessions:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
+  // Get paginated sessions - Main Dashboard (All except demo)
+  if (pathname === "/api/admin/main/sessions" && method === "GET") {
     try {
       const url = new URL(req.url, `http://${req.headers.host}`);
       const page = parseInt(url.searchParams.get("page")) || 1;
@@ -783,8 +890,8 @@ const httpServer = http.createServer(async (req, res) => {
       const status = url.searchParams.get("status");
       const search = url.searchParams.get("search");
 
-      // Build query
-      const query = {};
+      // Build query - exclude demo category
+      const query = { category: { $ne: "demo" } };
       if (category) query.category = category;
       if (status) query.isActive = status === "active";
       if (search) {
@@ -821,24 +928,32 @@ const httpServer = http.createServer(async (req, res) => {
         })
       );
     } catch (error) {
-      console.error("Error getting sessions:", error);
+      console.error("Error getting main sessions:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
     return;
   }
 
-  // Get session messages
+  // Get session messages - Demo Dashboard (Demo category only)
   if (
-    pathname.startsWith("/api/admin/sessions/") &&
+    pathname.startsWith("/api/admin/demo/sessions/") &&
     pathname.endsWith("/messages") &&
     method === "GET"
   ) {
     try {
-      const sessionId = pathname.split("/")[4];
+      const sessionId = pathname.split("/")[5];
       const url = new URL(req.url, `http://${req.headers.host}`);
       const page = parseInt(url.searchParams.get("page")) || 1;
       const limit = parseInt(url.searchParams.get("limit")) || 20;
+
+      // Verify session belongs to demo category
+      const session = await ChatSession.findById(sessionId);
+      if (!session || session.category !== "demo") {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Access denied" }));
+        return;
+      }
 
       const skip = (page - 1) * limit;
       const messages = await ChatMessage.find({ sessionId })
@@ -865,7 +980,59 @@ const httpServer = http.createServer(async (req, res) => {
         })
       );
     } catch (error) {
-      console.error("Error getting session messages:", error);
+      console.error("Error getting demo session messages:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
+  // Get session messages - Main Dashboard (All except demo)
+  if (
+    pathname.startsWith("/api/admin/main/sessions/") &&
+    pathname.endsWith("/messages") &&
+    method === "GET"
+  ) {
+    try {
+      const sessionId = pathname.split("/")[5];
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const page = parseInt(url.searchParams.get("page")) || 1;
+      const limit = parseInt(url.searchParams.get("limit")) || 20;
+
+      // Verify session does not belong to demo category
+      const session = await ChatSession.findById(sessionId);
+      if (!session || session.category === "demo") {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Access denied" }));
+        return;
+      }
+
+      const skip = (page - 1) * limit;
+      const messages = await ChatMessage.find({ sessionId })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const total = await ChatMessage.countDocuments({ sessionId });
+      const totalPages = Math.ceil(total / limit);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          messages: messages.reverse(), // Show oldest first
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Error getting main session messages:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
