@@ -361,13 +361,36 @@
         .modal-body {
             padding: 30px;
             max-height: 60vh;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
         .chat-messages {
             display: flex;
             flex-direction: column;
             gap: 15px;
+            flex: 1;
+            overflow-y: auto;
+            padding-right: 10px;
+            max-height: 50vh;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
         }
 
         .message {
@@ -560,11 +583,6 @@
                 <div id="chat-messages-container">
                     <div class="loading">Loading messages...</div>
                 </div>
-                <div class="pagination" id="messages-pagination" style="display: none;">
-                    <button class="pagination-btn" id="messages-prev-btn">Previous</button>
-                    <span class="pagination-info" id="messages-pagination-info"></span>
-                    <button class="pagination-btn" id="messages-next-btn">Next</button>
-                </div>
             </div>
         </div>
     </div>
@@ -574,6 +592,8 @@
         let currentPage = 1;
         let currentMessagesPage = 1;
         let currentSessionId = null;
+        let isLoadingMessages = false;
+        let hasMoreMessages = true;
         const pageSize = 10;
         const messagesPageSize = 20;
 
@@ -615,18 +635,8 @@
                 loadSessions();
             });
 
-            // Messages pagination
-            document.getElementById('messages-prev-btn').addEventListener('click', () => {
-                if (currentMessagesPage > 1) {
-                    currentMessagesPage--;
-                    loadMessages();
-                }
-            });
-
-            document.getElementById('messages-next-btn').addEventListener('click', () => {
-                currentMessagesPage++;
-                loadMessages();
-            });
+            // Messages pagination - removed manual pagination buttons
+            // Now using scroll-based loading
 
             // Modal
             document.getElementById('close-modal').addEventListener('click', closeModal);
@@ -765,15 +775,43 @@
         function viewMessages(sessionId) {
             currentSessionId = sessionId;
             currentMessagesPage = 1;
+            hasMoreMessages = true;
             document.getElementById('modal-title').textContent = `Chat Messages - ${sessionId}`;
             document.getElementById('chat-modal').style.display = 'block';
-            loadMessages();
+
+            // Ensure modal is fully visible before loading messages
+            setTimeout(() => {
+                loadMessages();
+            }, 100);
         }
 
         // Load messages for a session
-        async function loadMessages() {
+        async function loadMessages(append = false) {
+            if (isLoadingMessages || !hasMoreMessages) return;
+
+            isLoadingMessages = true;
             const container = document.getElementById('chat-messages-container');
-            container.innerHTML = '<div class="loading">Loading messages...</div>';
+
+            // Store current scroll position and height for maintaining position
+            let currentScrollTop = 0;
+            let currentScrollHeight = 0;
+            let chatMessages = null;
+
+            if (append) {
+                chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    currentScrollTop = chatMessages.scrollTop;
+                    currentScrollHeight = chatMessages.scrollHeight;
+                }
+
+                // Add loading indicator at the top
+                const loadingDiv = document.createElement('div');
+                loadingDiv.className = 'loading';
+                loadingDiv.textContent = 'Loading older messages...';
+                container.insertBefore(loadingDiv, container.firstChild);
+            } else {
+                container.innerHTML = '<div class="loading">Loading messages...</div>';
+            }
 
             try {
                 const params = new URLSearchParams({
@@ -785,71 +823,160 @@
                 const data = await response.json();
 
                 if (data.messages && data.messages.length > 0) {
-                    renderMessages(data.messages);
-                    updateMessagesPagination(data.pagination);
+                    if (append) {
+                        // Remove loading indicator
+                        const loadingDiv = container.querySelector('.loading');
+                        if (loadingDiv) loadingDiv.remove();
+
+                        // Append older messages at the top
+                        renderMessages(data.messages, true);
+
+                        // Maintain scroll position after loading older messages
+                        if (chatMessages) {
+                            const newScrollHeight = chatMessages.scrollHeight;
+                            const heightDifference = newScrollHeight - currentScrollHeight;
+                            chatMessages.scrollTop = currentScrollTop + heightDifference;
+                        }
+                    } else {
+                        // Initial load - replace content
+                        renderMessages(data.messages, false);
+                    }
+
+                    hasMoreMessages = data.pagination.hasNext;
+                    currentMessagesPage++;
                 } else {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-state-icon">💬</div>
-                            <h3>No messages found</h3>
-                            <p>This session has no messages yet.</p>
-                        </div>
-                    `;
+                    if (!append) {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">💬</div>
+                                <h3>No messages found</h3>
+                                <p>This session has no messages yet.</p>
+                            </div>
+                        `;
+                    } else {
+                        // Remove loading indicator
+                        const loadingDiv = container.querySelector('.loading');
+                        if (loadingDiv) loadingDiv.remove();
+                        hasMoreMessages = false;
+                    }
                 }
             } catch (error) {
                 console.error('Error loading messages:', error);
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">❌</div>
-                        <h3>Error loading messages</h3>
-                        <p>Please try again later.</p>
-                    </div>
-                `;
+                if (!append) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">❌</div>
+                            <h3>Error loading messages</h3>
+                            <p>Please try again later.</p>
+                        </div>
+                    `;
+                } else {
+                    // Remove loading indicator
+                    const loadingDiv = container.querySelector('.loading');
+                    if (loadingDiv) loadingDiv.remove();
+                }
+            } finally {
+                isLoadingMessages = false;
             }
         }
 
         // Render messages
-        function renderMessages(messages) {
+        function renderMessages(messages, append = false) {
             const container = document.getElementById('chat-messages-container');
-            const messagesHtml = `
-                <div class="chat-messages">
-                    ${messages.map(message => `
-                        <div class="message ${message.type}">
-                            <div class="message-avatar">
-                                ${message.type === 'user' ? 'U' : 'AI'}
-                            </div>
-                            <div class="message-content">
-                                <div class="message-text">${escapeHtml(message.message)}</div>
-                                <div class="message-time">${formatDate(message.timestamp)}</div>
-                            </div>
-                        </div>
-                    `).join('')}
+            const messagesHtml = messages.map(message => `
+                <div class="message ${message.type}">
+                    <div class="message-avatar">
+                        ${message.type === 'user' ? 'U' : 'AI'}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-text">${escapeHtml(message.message)}</div>
+                        <div class="message-time">${formatDate(message.timestamp)}</div>
+                    </div>
                 </div>
-            `;
-            container.innerHTML = messagesHtml;
+            `).join('');
+
+            if (append) {
+                // Append older messages at the top
+                const chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    chatMessages.insertAdjacentHTML('afterbegin', messagesHtml);
+                }
+            } else {
+                // Initial load - create new chat messages container
+                container.innerHTML = `
+                    <div class="chat-messages">
+                        ${messagesHtml}
+                    </div>
+                `;
+
+                // Scroll to bottom after initial load - with multiple attempts
+                scrollToBottom();
+
+                // Add scroll event listener for loading older messages
+                const chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    chatMessages.addEventListener('scroll', handleScroll);
+                }
+            }
         }
 
-        // Update messages pagination
-        function updateMessagesPagination(pagination) {
-            const paginationDiv = document.getElementById('messages-pagination');
-            const prevBtn = document.getElementById('messages-prev-btn');
-            const nextBtn = document.getElementById('messages-next-btn');
-            const info = document.getElementById('messages-pagination-info');
+        // Handle scroll for loading older messages
+        function handleScroll(event) {
+            const chatMessages = event.target;
+            const scrollTop = chatMessages.scrollTop;
 
-            if (pagination.totalPages > 1) {
-                paginationDiv.style.display = 'flex';
-                prevBtn.disabled = currentMessagesPage === 1;
-                nextBtn.disabled = currentMessagesPage === pagination.totalPages;
-                info.textContent = `Page ${currentMessagesPage} of ${pagination.totalPages} (${pagination.total} total)`;
-            } else {
-                paginationDiv.style.display = 'none';
+            // If scrolled to top and there are more messages, load older messages
+            if (scrollTop === 0 && hasMoreMessages && !isLoadingMessages) {
+                loadMessages(true);
             }
+        }
+
+        // Scroll to bottom function
+        function scrollToBottom() {
+            // Use requestAnimationFrame to ensure DOM is fully rendered
+            requestAnimationFrame(() => {
+                const container = document.getElementById('chat-messages-container');
+                const chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            });
+
+            // Multiple attempts to ensure scrolling works
+            setTimeout(() => {
+                const container = document.getElementById('chat-messages-container');
+                const chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }, 100);
+
+            // Second attempt after a longer delay
+            setTimeout(() => {
+                const container = document.getElementById('chat-messages-container');
+                const chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }, 300);
+
+            // Third attempt to be absolutely sure
+            setTimeout(() => {
+                const container = document.getElementById('chat-messages-container');
+                const chatMessages = container.querySelector('.chat-messages');
+                if (chatMessages) {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+            }, 500);
         }
 
         // Close modal
         function closeModal() {
             document.getElementById('chat-modal').style.display = 'none';
             currentSessionId = null;
+            currentMessagesPage = 1;
+            hasMoreMessages = true;
+            isLoadingMessages = false;
         }
 
         // Utility functions
