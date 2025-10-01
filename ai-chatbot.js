@@ -11,10 +11,10 @@
 
   // Configuration - can be customized via data attributes
   const CONFIG = {
-    apiUrl: "https://api.example.com/chat", // Default API endpoint
+    apiUrl: "http://localhost:3001/api/chat", // Default API endpoint
     websocketUrl: "ws://localhost:3002/ws", // WebSocket server URL
     defaultMessage: "Hello! How can I help you today?",
-    cdnBaseUrl: "https://your-cdn-url.com/html/", // Base URL for HTML/CSS files
+    cdnBaseUrl: "./html/", // Base URL for HTML/CSS files
     theme: "default",
     position: "bottom-right",
     autoOpen: false,
