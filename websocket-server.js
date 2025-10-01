@@ -745,6 +745,133 @@ const httpServer = http.createServer(async (req, res) => {
     return;
   }
 
+  // Admin API endpoints
+  if (pathname === "/api/admin/stats" && method === "GET") {
+    try {
+      const totalSessions = await ChatSession.countDocuments();
+      const activeSessions = await ChatSession.countDocuments({
+        isActive: true,
+      });
+      const totalMessages = await ChatMessage.countDocuments();
+      const categoryStats = await ChatSession.getCategoryStats();
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          totalSessions,
+          activeSessions,
+          totalMessages,
+          categoriesCount: categoryStats.length,
+          categoryStats,
+        })
+      );
+    } catch (error) {
+      console.error("Error getting admin stats:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
+  // Get paginated sessions
+  if (pathname === "/api/admin/sessions" && method === "GET") {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const page = parseInt(url.searchParams.get("page")) || 1;
+      const limit = parseInt(url.searchParams.get("limit")) || 10;
+      const category = url.searchParams.get("category");
+      const status = url.searchParams.get("status");
+      const search = url.searchParams.get("search");
+
+      // Build query
+      const query = {};
+      if (category) query.category = category;
+      if (status) query.isActive = status === "active";
+      if (search) {
+        query.$or = [
+          { _id: { $regex: search, $options: "i" } },
+          { userAgent: { $regex: search, $options: "i" } },
+          { url: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const skip = (page - 1) * limit;
+      const sessions = await ChatSession.find(query)
+        .populate("messageCount")
+        .sort({ lastActivity: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const total = await ChatSession.countDocuments(query);
+      const totalPages = Math.ceil(total / limit);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          sessions,
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Error getting sessions:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
+  // Get session messages
+  if (
+    pathname.startsWith("/api/admin/sessions/") &&
+    pathname.endsWith("/messages") &&
+    method === "GET"
+  ) {
+    try {
+      const sessionId = pathname.split("/")[4];
+      const url = new URL(req.url, `http://${req.headers.host}`);
+      const page = parseInt(url.searchParams.get("page")) || 1;
+      const limit = parseInt(url.searchParams.get("limit")) || 20;
+
+      const skip = (page - 1) * limit;
+      const messages = await ChatMessage.find({ sessionId })
+        .sort({ timestamp: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean();
+
+      const total = await ChatMessage.countDocuments({ sessionId });
+      const totalPages = Math.ceil(total / limit);
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          messages: messages.reverse(), // Show oldest first
+          pagination: {
+            page,
+            limit,
+            total,
+            totalPages,
+            hasNext: page < totalPages,
+            hasPrev: page > 1,
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Error getting session messages:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
   // Serve static files
   let filePath = pathname === "/" ? "/example.html" : pathname;
   filePath = path.join(__dirname, filePath);
