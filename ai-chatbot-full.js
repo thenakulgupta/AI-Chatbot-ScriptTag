@@ -11,7 +11,7 @@
     apiUrl: "https://ai-chat-script.nakultelestock.com/api/chat", // Default API endpoint
     websocketUrl: "wss://ai-chat-script.nakultelestock.com/ws", // WebSocket server URL
     defaultMessage: "Hello! How can I help you today?",
-    cdnBaseUrl: "./",
+    cdnBaseUrl: "https://ai-chat-script.nakultelestock.com/",
     cdnBaseUrlStyles: "styles/",
     cdnBaseUrlHtml: "html/",
     theme: "default",
