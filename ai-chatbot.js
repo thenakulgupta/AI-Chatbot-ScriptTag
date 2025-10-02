@@ -1,9 +1,6 @@
 /**
  * AI Chatbot Script Tag Integration
  * This script creates a chatbot widget that can be embedded on any website
- *
- * Usage: Include this script tag in your HTML:
- * <script src="https://your-cdn-url.com/ai-chatbot.js"></script>
  */
 
 (function () {
