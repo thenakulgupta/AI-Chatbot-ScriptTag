@@ -8,8 +8,8 @@
 
   // Configuration - can be customized via data attributes
   const CONFIG = {
-    apiUrl: "http://localhost:3001/api/chat", // Default API endpoint
-    websocketUrl: "ws://localhost:3001/ws", // WebSocket server URL
+    apiUrl: "https://ai-chat-script.nakultelestock.com/api/chat", // Default API endpoint
+    websocketUrl: "wss://ai-chat-script.nakultelestock.com/ws", // WebSocket server URL
     defaultMessage: "Hello! How can I help you today?",
     cdnBaseUrl: "./",
     cdnBaseUrlStyles: "styles/",
