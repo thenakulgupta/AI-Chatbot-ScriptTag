@@ -41,8 +41,10 @@ jobs:
         run: |
           ssh-keyscan -H ${{ env.AWS_EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Zip the entire backend directory
-        run: zip -r ai-chatbot-scriptag.zip ./*
+      - name: Make build and zip the entire backend directory
+        run: |
+          npm run build
+          zip -r ai-chatbot-scriptag.zip ./*
 
       - name: Delete existing build directory on EC2
         run: |
