@@ -4,7 +4,8 @@
   "description": "A lightweight, customizable AI chatbot widget that can be easily integrated into any website using a simple script tag",
   "main": "ai-chatbot.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "terser ai-chatbot-full.js -o ai-chatbot.js -c -m --comments false"
   },
   "keywords": [
     "chatbot",
@@ -35,6 +36,7 @@
     "ws": "^8.14.0"
   },
   "devDependencies": {
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "terser": "^5.44.0"
   }
 }
