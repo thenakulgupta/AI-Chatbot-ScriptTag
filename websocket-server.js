@@ -18,8 +18,7 @@ const ChatSession = require("./models/ChatSession");
 const ChatMessage = require("./models/ChatMessage");
 require("dotenv").config();
 
-const PORT = 3001;
-const WS_PORT = 3002;
+const PORT = process.env.PORT || 3001;
 
 // Initialize Groq client
 const groq = new Groq({
@@ -679,7 +678,7 @@ const httpServer = http.createServer(async (req, res) => {
       res.end(
         JSON.stringify({
           sessionId: session._id.toString(),
-          websocketUrl: `ws://localhost:${WS_PORT}`,
+          websocketUrl: `ws://localhost:${PORT}`,
           timestamp: new Date().toISOString(),
         })
       );
@@ -1071,9 +1070,9 @@ const httpServer = http.createServer(async (req, res) => {
   });
 });
 
-// Create WebSocket server
+// Create WebSocket server attached to the HTTP server
 const wss = new WebSocket.Server({
-  port: WS_PORT,
+  server: httpServer,
   path: "/ws",
 });
 
@@ -1088,9 +1087,7 @@ async function startServers() {
     // Start HTTP server
     httpServer.listen(PORT, () => {
       console.log(`🚀 AI Chatbot Server running on http://localhost:${PORT}`);
-      console.log(
-        `🔌 WebSocket Server running on ws://localhost:${WS_PORT}/ws`
-      );
+      console.log(`🔌 WebSocket Server running on ws://localhost:${PORT}/ws`);
       console.log(`📝 Example page: http://localhost:${PORT}/example.html`);
       console.log(`\nTo test the chatbot:`);
       console.log(
