@@ -1,4 +1,7 @@
 /* Markdown Styles - Shared between chatbot and admin modal */
+* {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
 
 /* Message Styles */
 .message {
