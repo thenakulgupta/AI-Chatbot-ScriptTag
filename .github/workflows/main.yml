@@ -43,6 +43,7 @@ jobs:
 
       - name: Make build and zip the entire backend directory
         run: |
+          npm i
           npm run build
           zip -r ai-chatbot-scriptag.zip ./*
 
@@ -81,7 +82,6 @@ jobs:
 
           cd ~/ai-chatbot-scriptag
           unzip ai-chatbot-scriptag.zip
-          npm install
 
           # Stop existing process
           pm2 delete ai-chatbot-scriptag || true
