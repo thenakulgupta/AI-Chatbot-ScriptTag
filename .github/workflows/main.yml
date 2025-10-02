@@ -71,6 +71,12 @@ jobs:
       - name: SSH into EC2 and deploy app
         run: |
           ssh -i ~/.ssh/key.pem -o "StrictHostKeyChecking=no" ${{ env.AWS_EC2_USER }}@${{ env.AWS_EC2_HOST }} << 'ENDSSH'
+          # Load nvm environment
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+          [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
+          nvm use stable
+
           cd ~/ai-chatbot-scriptag
           unzip ai-chatbot-scriptag.zip
           npm install
