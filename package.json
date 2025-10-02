@@ -4,7 +4,7 @@
   "description": "A lightweight, customizable AI chatbot widget that can be easily integrated into any website using a simple script tag",
   "main": "ai-chatbot.js",
   "scripts": {
-    "start": "node websocket-server.js"
+    "start": "node server.js"
   },
   "keywords": [
     "chatbot",
