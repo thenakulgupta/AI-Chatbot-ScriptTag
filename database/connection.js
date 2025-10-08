@@ -2,8 +2,8 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 
 // MongoDB connection configuration
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://localhost:27017/chatbot-script";
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
+const MONGODB_DATABASE = process.env.MONGODB_DATABASE || "chatbot-script";
 
 // Connection options
 const options = {
@@ -29,7 +29,10 @@ async function connectToDatabase() {
   try {
     console.log("🔄 Connecting to MongoDB...");
 
-    const connection = await mongoose.connect(MONGODB_URI, options);
+    const connection = await mongoose.connect(
+      `${MONGODB_URI}/${MONGODB_DATABASE}`,
+      options
+    );
 
     isConnected = true;
     connectionAttempts = 0;

@@ -237,7 +237,8 @@ npm start
 PORT=3001
 GROQ_API_KEY=your_groq_api_key
 GROQ_MODEL=llama3-8b-8192
-MONGODB_URI=mongodb://localhost:27017/chatbot-script
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DATABASE=chatbot-script
 ```
 
 ### 3. CDN Deployment
