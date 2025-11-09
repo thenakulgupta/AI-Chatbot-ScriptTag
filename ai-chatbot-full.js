@@ -8,10 +8,10 @@
 
   // Configuration - can be customized via data attributes
   const CONFIG = {
-    apiUrl: "https://ai-chat-script.nakultelestock.com/api/chat", // Default API endpoint
-    websocketUrl: "wss://ai-chat-script.nakultelestock.com/ws", // WebSocket server URL
+    apiUrl: "https://ai-chat-script.projects.stackmind.tech/api/chat", // Default API endpoint
+    websocketUrl: "wss://ai-chat-script.projects.stackmind.tech/ws", // WebSocket server URL
     defaultMessage: "Hello! How can I help you today?",
-    cdnBaseUrl: "https://ai-chat-script.nakultelestock.com/",
+    cdnBaseUrl: "https://ai-chat-script.projects.stackmind.tech/",
     cdnBaseUrlStyles: "styles/",
     cdnBaseUrlHtml: "html/",
     theme: "default",
