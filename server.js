@@ -401,7 +401,7 @@ async function handleJoinChat(
   prompt = ""
 ) {
   if (prompt && prompt !== "" && prompt?.length > 0) {
-    systemPrompt = prompt;
+    systemPrompt = prompt?.replaceAll("\\n", "\n").trim();
   }
   try {
     if (!sessionId) {
