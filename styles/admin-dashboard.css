@@ -179,7 +179,7 @@ input:focus {
     letter-spacing: 0.5px;
 }
 
-.category-support {
+.category-StackMind {
     background: #e3f2fd;
     color: #1976d2;
 }
@@ -192,6 +192,11 @@ input:focus {
 .category-general {
     background: #fff3e0;
     color: #f57c00;
+}
+
+.category-support {
+    background: #e0f7fa;
+    color: #00838f;
 }
 
 .category-demo {
