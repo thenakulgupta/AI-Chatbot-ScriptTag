@@ -350,11 +350,12 @@ function handleWebSocketMessage(ws, message) {
       userAgent,
       url,
       category,
+      prompt,
     } = data;
 
     switch (type) {
       case "join_chat":
-        handleJoinChat(ws, sessionId, userAgent, url, category);
+        handleJoinChat(ws, sessionId, userAgent, url, category, prompt);
         break;
 
       case "user_message":
@@ -396,8 +397,12 @@ async function handleJoinChat(
   sessionId,
   userAgent = "Unknown",
   url = "Unknown",
-  category = "general"
+  category = "general",
+  prompt = ""
 ) {
+  if (prompt && prompt !== "" && prompt?.length > 0) {
+    systemPrompt = prompt;
+  }
   try {
     if (!sessionId) {
       // Create new chat session

@@ -47,6 +47,7 @@ jobs:
         run: |
           npm i
           npm run build
+          rm -rf ai-chatbot-full.js
           zip -r ai-chatbot-scriptag.zip ./*
 
       - name: Delete existing build directory on EC2

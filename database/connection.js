@@ -29,10 +29,10 @@ async function connectToDatabase() {
   try {
     console.log("🔄 Connecting to MongoDB...");
 
-    const connection = await mongoose.connect(
-      `${MONGODB_URI}/${MONGODB_DATABASE}`,
-      options
-    );
+    const connection = await mongoose.connect(MONGODB_URI, {
+      ...options,
+      dbName: MONGODB_DATABASE,
+    });
 
     isConnected = true;
     connectionAttempts = 0;

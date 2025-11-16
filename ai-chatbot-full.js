@@ -21,6 +21,7 @@
     useWebSocket: true, // Enable WebSocket for real-time chat
     markdownEnabled: true, // Enable markdown rendering
     category: "general", // Default category for chat sessions
+    prompt: "", // Default prompt for the chatbot
   };
 
   // Global variables
@@ -106,7 +107,9 @@
     }
 
     // Get configuration from script tag data attributes
-    const scriptTag = document.querySelector('script[src*="ai-chatbot.js"]');
+    const scriptTag =
+      document.querySelector('script[src*="ai-chatbot.js"]') ||
+      document.querySelector('script[src*="ai-chatbot-full.js"]');
     if (scriptTag) {
       Object.keys(CONFIG).forEach((key) => {
         const value = scriptTag.getAttribute(
@@ -620,6 +623,7 @@
             sessionId: currentSessionId,
             userAgent: navigator.userAgent,
             url: window.location.href,
+            prompt: CONFIG.prompt,
             category: CONFIG.category,
           });
         } else {
@@ -627,6 +631,7 @@
             type: "join_chat",
             userAgent: navigator.userAgent,
             url: window.location.href,
+            prompt: CONFIG.prompt,
             category: CONFIG.category,
           });
         }
