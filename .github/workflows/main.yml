@@ -23,7 +23,7 @@ jobs:
       - name: Convert secret to JSON matrix
         id: set-matrix
         run: |
-          IPS="${{ secrets.ELASTIC_IPS }}"
+          IPS="${{ vars.ELASTIC_IPS }}"
           JSON=$(printf '%s\n' "$IPS" | jq -R 'split(",")')
           echo "matrix=$JSON" >> $GITHUB_OUTPUT
   deploy:
