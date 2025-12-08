@@ -120,6 +120,7 @@ jobs:
           [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
           [ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"
           nvm use stable
+          npm install -g pm2
 
           cd ~/ai-chatbot-scriptag
           unzip ai-chatbot-scriptag.zip
