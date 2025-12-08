@@ -15,16 +15,35 @@ env:
   MONGODB_DATABASE: chatbot-script
 
 jobs:
-  deploy:
+  prepare:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Convert secret to JSON matrix
+        id: set-matrix
+        run: |
+          IPS="${{ secrets.ELASTIC_IPS }}"
+          JSON=$(printf '%s\n' "$IPS" | jq -R 'split(",")')
+          echo "matrix=$JSON" >> $GITHUB_OUTPUT
+  deploy:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set current host
+        run: echo "AWS_EC2_HOST=${{ matrix.host }}" >> $GITHUB_ENV
+
       - name: Create SSH key file from GitHub secret
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SECRET }}" > ~/.ssh/key.pem
+          echo "${{ secrets.PRIVATE_KEY_EC2 }}" > ~/.ssh/key.pem
           chmod 600 ~/.ssh/key.pem
           if [ -z "$(cat ~/.ssh/key.pem)" ]; then
             echo "ERROR: SSH Key secret is empty"
