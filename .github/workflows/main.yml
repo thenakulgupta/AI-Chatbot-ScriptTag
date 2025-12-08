@@ -20,12 +20,27 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - name: Convert secret to JSON matrix
+      - name: Convert secret to JSON matrix safely
         id: set-matrix
         run: |
           IPS="${{ vars.ELASTIC_IPS }}"
-          JSON=$(printf '%s\n' "$IPS" | jq -R 'split(",")')
-          echo "matrix=$JSON" >> $GITHUB_OUTPUT
+
+          # Convert comma-separated string into JSON array manually
+          JSON="["
+          FIRST=true
+          IFS=',' read -ra ADDR <<< "$IPS"
+          for ip in "${ADDR[@]}"; do
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              JSON+=","
+            fi
+            JSON+="\"$ip\""
+          done
+          JSON+="]"
+
+          echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
+
   deploy:
     needs: prepare
     runs-on: ubuntu-latest
