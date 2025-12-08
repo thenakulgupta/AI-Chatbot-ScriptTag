@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      environment:
+        required: true
+        default: production
 
 env:
   AWS_EC2_USER: ubuntu
@@ -40,7 +45,6 @@ jobs:
           JSON+="]"
 
           echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
-
   deploy:
     needs: prepare
     runs-on: ubuntu-latest
