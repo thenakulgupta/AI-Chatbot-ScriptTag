@@ -4,11 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      environment:
-        required: true
-        default: production
 
 env:
   AWS_EC2_USER: ubuntu
@@ -20,44 +15,11 @@ env:
   MONGODB_DATABASE: chatbot-script
 
 jobs:
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - name: Convert secret to JSON matrix safely
-        id: set-matrix
-        run: |
-          IPS="${{ vars.ELASTIC_IPS }}"
-
-          # Convert comma-separated string into JSON array manually
-          JSON="["
-          FIRST=true
-          IFS=',' read -ra ADDR <<< "$IPS"
-          for ip in "${ADDR[@]}"; do
-            if [ "$FIRST" = true ]; then
-              FIRST=false
-            else
-              JSON+=","
-            fi
-            JSON+="\"$ip\""
-          done
-          JSON+="]"
-
-          echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
   deploy:
-    needs: prepare
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        host: ${{ fromJson(needs.prepare.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: Set current host
-        run: echo "AWS_EC2_HOST=${{ matrix.host }}" >> $GITHUB_ENV
 
       - name: Create SSH key file from GitHub secret
         run: |
