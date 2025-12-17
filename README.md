@@ -49,7 +49,7 @@ A comprehensive, production-ready AI chatbot widget with real-time WebSocket com
 Add this script tag to your HTML:
 
 ```html
-<script src="https://ai-chat-script.projects.stackmind.tech/ai-chatbot.js"></script>
+<script src="https://ai-chat-script-projects.stackmind.tech/ai-chatbot.js"></script>
 ```
 
 ### 2. Advanced Configuration
@@ -58,7 +58,7 @@ Customize the chatbot using data attributes:
 
 ```html
 <script
-  src="https://ai-chat-script.projects.stackmind.tech/ai-chatbot.js"
+  src="https://ai-chat-script-projects.stackmind.tech/ai-chatbot.js"
   data-default-message="Welcome! How can I help you?"
   data-category="support"
   data-auto-open="true"
