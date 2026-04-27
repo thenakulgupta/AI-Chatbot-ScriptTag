@@ -3,3 +3,4 @@ history/
 *.log
 .env*
 ai-chatbot.js
+.DS_Store
