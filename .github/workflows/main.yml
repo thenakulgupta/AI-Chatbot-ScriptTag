@@ -86,7 +86,7 @@ jobs:
 
           cd ~/ai-chatbot-scriptag
           unzip ai-chatbot-scriptag.zip
-          rm -rf ai-chatbot-scriptag.zip
+          sudo rm -rf ai-chatbot-scriptag.zip
 
           # Stop existing process
           pm2 delete ai-chatbot-scriptag || true
